@@ -1,0 +1,1585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+  <meta name="theme-color" content="#F7F5F2"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="light"/>
+  <meta name="apple-mobile-web-app-title" content="Block 1"/>
+  <title>Block 1 — Raymond</title>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{background:#F7F5F2;color:#1A1A1A;font-family:Georgia,'Times New Roman',serif;-webkit-tap-highlight-color:transparent;}
+    input[type=range]{-webkit-appearance:none;width:100%;height:3px;border-radius:2px;background:#D8D4CC;outline:none;}
+    input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#B8960C;cursor:pointer;}
+    input[type=number]{-webkit-appearance:none;appearance:none;background:#fff;border:1px solid #D0CCC4;border-radius:3px;padding:7px 8px;color:#1A1A1A;font-size:13px;font-family:Georgia,serif;text-align:center;width:100%;}
+    input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}
+    input[type=number]::placeholder{color:#B0ACA6;font-style:italic;}
+    button{cursor:pointer;font-family:Georgia,serif;}
+    ::-webkit-scrollbar{display:none;}
+    @keyframes flashGreen{0%{background:#F7F5F2;}25%{background:#2E7D52;}50%{background:#F7F5F2;}75%{background:#2E7D52;}100%{background:#F7F5F2;}}
+    @keyframes pulse{0%{opacity:1;}50%{opacity:0.4;}100%{opacity:1;}}
+    .flash{animation:flashGreen 1.2s ease-in-out 3;}
+    .pulse{animation:pulse 1.5s ease-in-out infinite;}
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+const { useState, useEffect, useRef } = React;
+
+// ── STORAGE ───────────────────────────────────────────────────────
+const LS = {
+  get: (k) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+
+// ── USMC DRESS BLUE PALETTE ───────────────────────────────────────
+const C = {
+  // Core USMC colors
+  midnightBlue:  "#1B2A4A",   // coat — primary structure, headers
+  trouserBlue:   "#2E4A7A",   // trouser stripe — secondary accents, day tabs
+  scarlet:       "#C01C2C",   // blood stripe — mandatory, spine flags, alerts
+  gold:          "#B8960C",   // brass buttons/EGA — progression, phase, sauna
+  goldLight:     "#F5EDD0",   // gold tint background
+  goldBorder:    "#D4AF3A",   // gold border
+  scarletLight:  "#FAF0F0",   // scarlet tint background
+  scarletBorder: "#E8C0C0",   // scarlet border
+  midnightLight: "#EDF0F5",   // midnight tint background
+  midnightBorder:"#C0C8D8",   // midnight border
+  trouserLight:  "#ECF0F8",   // trouser tint background
+  trouserBorder: "#C0CCE0",   // trouser border
+  // Neutrals
+  bg:        "#F7F5F2",
+  bgCard:    "#FFFFFF",
+  bgAlt:     "#F2F0EC",
+  bgHeader:  "#ECEAE5",
+  border:    "#DDD9D1",
+  borderMid: "#C8C4BC",
+  text:      "#1A1A1A",
+  textMid:   "#3A3835",
+  textMuted: "#6A6864",
+  textFaint: "#9A9693",
+  green:     "#2E7D52",
+  greenBg:   "#EBF5F0",
+  greenBorder:"#A8D4BC",
+};
+
+// ── PHASE CONFIG ──────────────────────────────────────────────────
+function getPhase(w) {
+  if (w <= 2) return { name:"CALIBRATION",        rir:"3–4 RIR", color:C.trouserBlue,  colorBg:C.trouserLight,  weeks:"1–2", note:"Movement quality over load. Find baseline weights. No intensity techniques." };
+  if (w <= 4) return { name:"LOADING",             rir:"2–3 RIR", color:C.gold,         colorBg:C.goldLight,     weeks:"3–4", note:"True working weights established. Still no intensity techniques." };
+  if (w <= 7) return { name:"PROGRESSIVE OVERLOAD",rir:"1–2 RIR", color:C.midnightBlue, colorBg:C.midnightLight, weeks:"5–7", note:"Double progression in full effect. Add weight when earned." };
+  if (w <= 9) return { name:"INTENSIFICATION",     rir:"0–1 RIR isolation / 1 RIR compounds", color:C.scarlet, colorBg:C.scarletLight, weeks:"8–9", note:"Intensity techniques on isolation and machine work ONLY." };
+  return { name:"DELOAD", rir:"3–4 RIR", color:C.textMuted, colorBg:C.bgAlt, weeks:"10", note:"Volume cut 40–50%. Load at 60–70% of working weight. Recover fully." };
+}
+
+// ── READINESS ─────────────────────────────────────────────────────
+function scoreReadiness(i) {
+  // Each input scored out of 10, total out of 70
+  // Garmin metrics: divide raw score by 10 (keeps decimals)
+  const bodyBatteryScore    = parseFloat((i.bodyBattery / 10).toFixed(1));
+  const sleepScore          = parseFloat((i.sleepScore / 10).toFixed(1));
+  const trainingReadiness   = parseFloat((i.trainingReadiness / 10).toFixed(1));
+  // HRV Status: label-based, whole numbers
+  const hrvScore = ({favorable:10, balanced:7, unbalanced:4, poor:1})[i.hrv] || 5;
+  // Resting HR: label-based, whole numbers
+  const hrScore  = ({at:10, "1-3":7, "4-6":4, "7+":1})[i.restingHR] || 5;
+  // Soreness: user enters 0-10, we invert (high soreness = low score)
+  const sorenessScore = parseFloat((10 - i.soreness).toFixed(1));
+  // Motivation: carries directly
+  const motivationScore = parseFloat(i.motivation.toFixed(1));
+
+  const total = bodyBatteryScore + sleepScore + trainingReadiness + hrvScore + hrScore + sorenessScore + motivationScore;
+  return parseFloat(total.toFixed(1));
+}
+
+function getTier(score) {
+  // Out of 70 total. Bands maintain same proportional thresholds as original system.
+  if (score >= 56) return { tier:"GREEN",  label:"PUSH",         color:C.green,   bg:C.greenBg,     note:"Train exactly as programmed. Don't waste a green day." };
+  if (score >= 42) return { tier:"YELLOW", label:"TRAIN NORMAL", color:C.gold,    bg:C.goldLight,   note:"Add 1 RIR to all sets. No intensity techniques. Skip Friday conditioning finisher." };
+  if (score >= 28) return { tier:"ORANGE", label:"REDUCE",       color:"#B85C00", bg:"#FDF3EA",     note:"Cut one set per exercise. Add 1–2 RIR. Skip conditioning finisher. Three Orange days in 7 = immediate deload." };
+  return { tier:"RED", label:"REST", color:C.scarlet, bg:C.scarletLight, note:"Do not train. Zone 2 only — 20–30 min easy walk or bike." };
+}
+
+// ── PROGRESSION ───────────────────────────────────────────────────
+function parseRange(r) {
+  const m = r ? r.match(/(\d+)[–\-](\d+)/) : null;
+  return m ? { min:parseInt(m[1]), max:parseInt(m[2]) } : { min:0, max:0 };
+}
+function checkProgression(log, repRange) {
+  const completed = (log||[]).filter(s => s && s.reps && s.weight);
+  if (!completed.length) return false;
+  const { max } = parseRange(repRange);
+  return completed.every(s => parseInt(s.reps) >= max) && parseInt(completed[completed.length-1].rir||0) >= 1;
+}
+
+// ── WARM-UP CALC ──────────────────────────────────────────────────
+function feederCount(feeders) {
+  if (!feeders) return 0;
+  if (feeders.includes("3 Sets") || feeders.includes("3 Warm")) return 3;
+  if (feeders.includes("2 Sets") || feeders.includes("2 Warm")) return 2;
+  if (feeders.includes("1 Set")  || feeders.includes("1 Warm")) return 1;
+  return 0;
+}
+function calcWarmup(w, count) {
+  const wt = parseFloat(w);
+  if (!wt || isNaN(wt) || wt <= 0) return null;
+  const schemes = {
+    3: [{pct:45,reps:"6–10"},{pct:65,reps:"4–6"},{pct:85,reps:"3–4"}],
+    2: [{pct:50,reps:"6–10"},{pct:70,reps:"4–6"}],
+    1: [{pct:60,reps:"6–10"}],
+  };
+  return (schemes[count]||[]).map(s => ({...s, weight: Math.round(wt * s.pct/100 / 5)*5}));
+}
+
+// ── REST TIMER ────────────────────────────────────────────────────
+function parseRestSeconds(rest) {
+  if (!rest) return 90;
+  if (rest.includes("2–3") || rest.includes("2-3")) return 150;
+  if (rest.includes("3"))   return 180;
+  if (rest.includes("2 min")) return 120;
+  if (rest.includes("90"))  return 90;
+  if (rest.includes("75"))  return 75;
+  if (rest.includes("60–75")||rest.includes("60-75")) return 67;
+  if (rest.includes("60"))  return 60;
+  if (rest.includes("45"))  return 45;
+  return 90;
+}
+
+// ── SESSION MODIFIER ──────────────────────────────────────────────
+const MODES = {
+  full: {
+    id: "full",
+    label: "FULL SESSION",
+    emoji: "💪",
+    color: C.midnightBlue,
+    colorBg: C.midnightLight,
+    description: "Train exactly as programmed.",
+    setsMultiplier: 1,
+    rirAdd: 0,
+    rpeCapNote: null,
+    restMultiplier: 1,
+    skipFinisher: false,
+    skipConditioning: false,
+    bannerNote: null,
+  },
+  functional: {
+    id: "functional",
+    label: "FUNCTIONAL DAY",
+    emoji: "⛳",
+    color: C.gold,
+    colorBg: C.goldLight,
+    description: "Train without the dead feeling. Life comes after this.",
+    setsMultiplier: 0.67,  // roughly 2/3 of working sets
+    rirAdd: 2,             // add 2 RIR to all sets — stay well short of failure
+    rpeCapNote: "RPE 5 cap on all compounds today.",
+    restMultiplier: 1.25,  // longer rest = less accumulated fatigue
+    skipFinisher: true,
+    skipConditioning: true,
+    bannerNote: "Functional Day active — volume reduced, RPE capped, finisher skipped. You'll walk out of here ready to perform.",
+  },
+  maintenance: {
+    id: "maintenance",
+    label: "MAINTENANCE DAY",
+    emoji: "🔒",
+    color: C.trouserBlue,
+    colorBg: C.trouserLight,
+    description: "Show up, keep the habit, don't dig a hole.",
+    setsMultiplier: 0.34, // one working set per exercise
+    rirAdd: 3,            // 3 RIR added — well away from failure
+    rpeCapNote: "RPE 4–5 cap. One working set per exercise.",
+    restMultiplier: 1,
+    skipFinisher: true,
+    skipConditioning: true,
+    bannerNote: "Maintenance Day active — one working set, RPE 4–5, in and out in 35–40 min. Habit preserved, no hole dug.",
+  },
+};
+
+function getModifiedSets(originalSets, mode) {
+  if (typeof originalSets !== "number") return originalSets;
+  if (mode.id === "full") return originalSets;
+  const result = Math.max(1, Math.round(originalSets * mode.setsMultiplier));
+  return result;
+}
+
+function getModifiedRestSecs(baseSecs, mode) {
+  return Math.round(baseSecs * mode.restMultiplier);
+}
+
+// ── TIME WINDOWS (Full Session only) ──────────────────────────────
+const TIME_WINDOWS = {
+  full: {
+    id: "full",
+    label: "75+ MIN",
+    emoji: "🔥",
+    color: C.midnightBlue,
+    setsMultiplier: 1,
+    maxSets: 99,
+    keepIsolation: true,
+    keepFinisher: true,
+    dropNote: null,
+    banner: null,
+  },
+  sixty: {
+    id: "sixty",
+    label: "60 MIN",
+    emoji: "⏱",
+    color: C.trouserBlue,
+    setsMultiplier: 0.75,   // drop one set per exercise
+    maxSets: 3,
+    keepIsolation: true,
+    keepFinisher: false,
+    dropNote: "60-min window — finisher removed, sets reduced by one.",
+    banner: "60 Min window active — one set dropped per exercise, finisher removed. Every movement pattern stays. Full intensity.",
+  },
+  fortyfive: {
+    id: "fortyfive",
+    label: "45 MIN",
+    emoji: "⚡",
+    color: C.gold,
+    setsMultiplier: 0.5,    // two working sets max
+    maxSets: 2,
+    keepIsolation: false,   // isolation removed — compounds and face pull only
+    keepFinisher: false,
+    dropNote: "Not in 45-min window",
+    banner: "45 Min window active — compounds and face pull only, 2 sets each, full intensity. Minimum effective dose.",
+  },
+};
+
+// Tier classification for time window filtering
+const COMPOUND_TIERS = [
+  "PRIMARY COMPOUND","SECONDARY COMPOUND","PRIMARY POSTERIOR CHAIN",
+  "PRIMARY TRICEP","MANDATORY","CONDITIONAL — MONITOR CLOSELY","ZONE 2 SESSION",
+];
+
+function isCompoundTier(tier) {
+  return COMPOUND_TIERS.includes(tier);
+}
+
+function getTimeWindowSets(originalSets, tw) {
+  if (typeof originalSets !== "number") return originalSets;
+  if (tw.id === "full") return originalSets;
+  return Math.max(1, Math.min(tw.maxSets, Math.round(originalSets * tw.setsMultiplier)));
+}
+
+function exVisibleInWindow(ex, tw) {
+  if (tw.id === "full") return true;
+  if (ex.noLog) return tw.keepIsolation; // core supersets go with isolation
+  if (isCompoundTier(ex.tier)) return true;
+  return tw.keepIsolation;
+}
+
+// Global screen flash controller
+let globalFlashFn = null;
+
+function RestTimer({ seconds, onDone }) {
+  const [remaining, setRemaining] = useState(seconds);
+  const [done, setDone]           = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    ref.current = setInterval(() => {
+      setRemaining(r => {
+        if (r <= 1) {
+          clearInterval(ref.current);
+          setDone(true);
+          if (navigator.vibrate) navigator.vibrate([400,200,400,200,600]);
+          if (globalFlashFn) globalFlashFn();
+          return 0;
+        }
+        return r - 1;
+      });
+    }, 1000);
+    return () => clearInterval(ref.current);
+  }, []);
+
+  const pct = ((seconds - remaining) / seconds) * 100;
+  const mins = Math.floor(remaining / 60);
+  const secs = remaining % 60;
+  const inCountdown = remaining <= 5 && remaining > 0 && !done;
+
+  return (
+    <div style={{
+      background: done ? C.greenBg : inCountdown ? "#FFF8E8" : C.midnightLight,
+      border: `1px solid ${done ? C.greenBorder : inCountdown ? C.gold : C.midnightBorder}`,
+      borderLeft: `3px solid ${done ? C.green : inCountdown ? C.gold : C.midnightBlue}`,
+      borderRadius:"4px", padding:"12px 14px", marginTop:"10px",
+      transition:"all 0.3s",
+    }}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}}>
+        <div style={{fontSize:"9px",letterSpacing:"2px",color:done?C.green:inCountdown?C.gold:C.midnightBlue,textTransform:"uppercase",fontWeight:"bold"}}>
+          {done ? "✓ REST COMPLETE — GO!" : inCountdown ? "💣 INCOMING..." : "REST TIMER"}
+        </div>
+        <div style={{
+          fontSize: inCountdown ? "32px" : "22px",
+          fontWeight:"bold",
+          color:done?C.green:inCountdown?C.scarlet:C.midnightBlue,
+          fontVariantNumeric:"tabular-nums",
+          transition:"font-size 0.2s",
+        }}>
+          {done ? "💥 GO!" : inCountdown ? remaining : `${mins}:${secs.toString().padStart(2,"0")}`}
+        </div>
+      </div>
+      <div style={{background:done?C.greenBorder:C.midnightBorder,borderRadius:"2px",height:"4px",overflow:"hidden"}}>
+        <div style={{
+          background:done?C.green:inCountdown?C.scarlet:C.midnightBlue,
+          height:"100%",width:`${pct}%`,
+          transition:"width 1s linear",borderRadius:"2px",
+        }}/>
+      </div>
+      {done && <div style={{fontSize:"13px",color:C.green,marginTop:"8px",fontWeight:"bold",textAlign:"center",letterSpacing:"2px"}}>LOAD THE BAR</div>}
+    </div>
+  );
+}
+
+// ── SOUNDS ────────────────────────────────────────────────────────
+function scheduleBombDrop(restSecs) {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    if (ctx.state === "suspended") ctx.resume();
+    const t = ctx.currentTime;
+    const whistleStart = Math.max(0.1, restSecs - 5);
+    const explodeAt = restSecs;
+
+    // Whistle descend
+    const w = ctx.createOscillator();
+    const wg = ctx.createGain();
+    w.connect(wg); wg.connect(ctx.destination);
+    w.type = "sine";
+    w.frequency.setValueAtTime(1400, t + whistleStart);
+    w.frequency.exponentialRampToValueAtTime(60, t + explodeAt - 0.05);
+    wg.gain.setValueAtTime(0.0, t + whistleStart);
+    wg.gain.linearRampToValueAtTime(0.45, t + whistleStart + 2.0);
+    wg.gain.linearRampToValueAtTime(0.6, t + explodeAt - 0.1);
+    wg.gain.linearRampToValueAtTime(0.0, t + explodeAt);
+    w.start(t + whistleStart);
+    w.stop(t + explodeAt + 0.1);
+
+    // Explosion
+    const e = ctx.createOscillator();
+    const eg = ctx.createGain();
+    const ef = ctx.createBiquadFilter();
+    e.connect(ef); ef.connect(eg); eg.connect(ctx.destination);
+    e.type = "sawtooth"; ef.type = "lowpass";
+    ef.frequency.setValueAtTime(500, t + explodeAt);
+    ef.frequency.exponentialRampToValueAtTime(30, t + explodeAt + 0.7);
+    e.frequency.setValueAtTime(80, t + explodeAt);
+    e.frequency.exponentialRampToValueAtTime(15, t + explodeAt + 0.8);
+    eg.gain.setValueAtTime(0.0, t + explodeAt - 0.01);
+    eg.gain.linearRampToValueAtTime(1.0, t + explodeAt + 0.04);
+    eg.gain.exponentialRampToValueAtTime(0.001, t + explodeAt + 0.9);
+    e.start(t + explodeAt - 0.01);
+    e.stop(t + explodeAt + 1.0);
+
+    // GO tone
+    const g = ctx.createOscillator();
+    const gg = ctx.createGain();
+    g.connect(gg); gg.connect(ctx.destination);
+    g.type = "sine";
+    g.frequency.setValueAtTime(280, t + explodeAt + 0.7);
+    g.frequency.exponentialRampToValueAtTime(1000, t + explodeAt + 1.2);
+    gg.gain.setValueAtTime(0.0, t + explodeAt + 0.65);
+    gg.gain.linearRampToValueAtTime(0.6, t + explodeAt + 0.75);
+    gg.gain.exponentialRampToValueAtTime(0.001, t + explodeAt + 1.4);
+    g.start(t + explodeAt + 0.65);
+    g.stop(t + explodeAt + 1.5);
+
+    setTimeout(() => { try { ctx.close(); } catch(e) {} }, (restSecs + 3) * 1000);
+  } catch(err) { console.log("Audio:", err); }
+}
+
+// set log beep removed per user request
+
+// ── SESSION DATA ──────────────────────────────────────────────────
+const SESSIONS = {
+  MON:{
+    day:"MON",fullDay:"MONDAY",focus:"CHEST + TRICEPS",subtitle:"Push 1",
+    color:C.midnightBlue,colorBg:C.midnightLight,recoveryDemand:"MODERATE",sauna:true,
+    warmup:["Athletic Primer: Broad Jump — 3 x 3 (load hips, max distance, land soft)","Stationary bike — 2 min easy","Band pull-aparts — 2 x 20","Cable Face Pull primer — 1 x 15, light (structural maintenance, not a working set)","Pec deck primer — 2 x 15, very light","Arm circles and shoulder rolls"],
+    exercises:[
+      {id:"mon_01",number:"01",tier:"PRIMARY COMPOUND",name:"Barbell Incline Press",preferred:true,alt:"Smith Machine Incline Press (30–45°)",feeders:"3 Sets: 45% x 6–10 | 65% x 4–6 | 85% x 3–4",sets:4,repRange:"8–12",rest:"2–3 min",notes:"ODD WEEKS (1,3,5,7,9) — PRIMARY: Barbell Incline Press. Upper chest priority. Touch bar to upper chest, 2–3 sec eccentric, stop short of lockout, back pinned. | EVEN WEEKS (2,4,6,8,10) — SWAP TO PRIMARY: Flat Barbell Bench Press. Overall chest mass. Bar to mid-chest, 2–3 sec eccentric, drive through center of chest. Same feeder sets, same RIR, same sets and reps. Only the movement changes.",spineFlag:null,weekAware:true,oddName:"Barbell Incline Press",evenName:"Flat Barbell Bench Press"},
+      {id:"mon_02",number:"02",tier:"SECONDARY COMPOUND",name:"Incline DB Press",preferred:true,alt:"DB version of whichever movement is secondary this week",feeders:"2 Sets: 50% x 6–10 | 70% x 4–6",sets:3,repRange:"10–15",rest:"90 sec",notes:"ODD WEEKS (1,3,5,7,9) — SECONDARY: Hammer Strength Flat Press or Flat DB Press. Complement the incline primary with mid-chest stimulus. | EVEN WEEKS (2,4,6,8,10) — SECONDARY: Incline DB Press. Complement the flat primary with upper chest stimulus. Work into the 80–100 lb range. Elbows at 45–60°. Full stretch at bottom.",spineFlag:null,weekAware:true,oddName:"Hammer Strength Flat Press",evenName:"Incline DB Press"},
+      {id:"mon_03",number:"03",tier:"ISOLATION",name:"Cable Crossover (low-to-high)",preferred:false,alt:null,feeders:"1 Set: 60% x 6–10",sets:3,repRange:"12–15",rest:"60–75 sec",notes:"Squeeze hard at contraction. Control the return. The stretch at the bottom is where the growth signal lives.",spineFlag:null},
+      {id:"mon_04",number:"04",tier:"ISOLATION",name:"Pec Deck / Machine Fly",preferred:false,alt:null,feeders:null,sets:3,repRange:"15–20",rest:"60 sec",notes:"Constant tension. Stop just before full adduction.",spineFlag:"T9-T11: Stop before full adduction on every rep."},
+      {id:"mon_05",number:"05",tier:"SUPERSET — TRICEPS",name:"Rope Pushdown",subName:"Overhead Cable Extension",preferred:false,alt:"Lying Cable Extension or DB Skull Crusher if cervical discomfort",feeders:null,sets:3,repRangeA:"15–20",repRangeB:"12–15",repRange:"15–20",rest:"60 sec between rounds",notes:"Rotate immediately. Overhead extension fully stretches the long head. Monitor C6-C7.",spineFlag:"C6-C7: Monitor overhead position. Switch to alternative if cervical discomfort.",isSuperset:true},
+      {id:"mon_06",number:"06",tier:"SUPERSET — CORE",name:"Dead Bug",subName:"Pallof Press",preferred:false,alt:null,feeders:null,sets:3,repRangeA:"8–10 per side",repRangeB:"10–12 per side",repRange:"8–10",rest:"45 sec between rounds",notes:"Dead bug: lower back flat against floor throughout. Pallof press: 2-sec hold at full extension.",spineFlag:null,isSuperset:true,noLog:true},
+    ],
+    finisher:{name:"Cable Fly Pump Finisher",duration:"8 MIN",protocol:"4 x 15–20 cable crossovers or pec deck, 30 sec rest. Final set to failure.",notes:"Hany Rambod FST-7 — high rep, pump-focused. Maximum pump to end the chest session.",influence:"Hany Rambod — FST-7"},
+    sauna:{timing:"POST-SESSION",protocol:"15–20 min. Hydrate before entering.",rationale:"Attia's plasma volume expansion and Huberman's post-training GH window both apply.",influence:"Attia + Huberman"},
+    cooldown:"Light chest and shoulder stretch 60 sec per side. Band pull-aparts x 20. Then sauna.",
+  },
+  TUE:{
+    day:"TUE",fullDay:"TUESDAY",focus:"BACK + BICEPS",subtitle:"Pull 1 — Thickness",
+    color:C.gold,colorBg:C.goldLight,recoveryDemand:"MODERATE",sauna:true,
+    warmup:["Band pull-aparts — 2 x 20","Scapular wall slides — 2 x 10","Face pull primer — 2 x 15, very light","Light seated cable row — 1 x 15, minimal weight"],
+    exercises:[
+      {id:"tue_01",number:"01",tier:"PRIMARY COMPOUND",name:"Chest-Supported T-Bar Row",preferred:true,alt:"Hammer Strength MDX Row (odd wks) / Chest-Supported High Row (even wks)",feeders:"3 Sets: 45% x 6–10 | 65% x 4–6 | 85% x 3–4",sets:4,repRange:"15 (10 alt + 5 bilateral)",rest:"2–3 min",notes:"BLACK ADAM PROTOCOL: 10 alternating reps (left arm then right arm, alternating each rep) then 5 bilateral reps together = 15 total reps per set. Full shoulder blade protraction at the bottom before every rep. Pull to the lower chest. Do not rush the switch between arms. The bilateral finish loads both sides simultaneously for maximum mid-back contraction. Do not substitute a bent-over barbell row.",spineFlag:null},
+      {id:"tue_02",number:"02",tier:"SECONDARY COMPOUND",name:"Bodyweight Pull-Ups",preferred:true,alt:"Lat Pulldown — dual handles, neutral grip",feeders:"2 Sets: 50% x 6–10 | 70% x 4–6",sets:3,repRange:"6–10",rest:"2 min",notes:"Dead hang at bottom. Pull until chin clears the bar. Bodyweight only — no added load. Monitor shoulder response every session. Revert to lat pulldown if any pain.",spineFlag:"Monitor shoulder every session. Any pain — revert to lat pulldown immediately and log it."},
+      {id:"tue_03",number:"03",tier:"SECONDARY COMPOUND",name:"TechnoGym ISO-Low Row",preferred:true,alt:"Single-Arm DB Row — support hand and knee on bench",feeders:"2 Sets: 50% x 6–10 | 70% x 4–6",sets:3,repRange:"10–15",rest:"60 sec between arms",notes:"BLACK ADAM PROTOCOL: 10 alternating reps (left, right, left, right...) then 5 bilateral reps together = 15 total reps per set. Full stretch at the bottom, pull to the hip on every rep. The TechnoGym independent arm setup is perfect for this — each arm moves freely. The alternating portion prevents dominant side compensation. The bilateral finish creates maximum mid-back contraction. Work into the 80–100 lb range progressively.",spineFlag:null},
+      {id:"tue_04",number:"04",tier:"MANDATORY",name:"Cable Face Pull",preferred:false,alt:null,feeders:null,sets:3,repRange:"15–20",rest:"60 sec",notes:"Rope at forehead height or above. Pull hands to beside ears, rotate wrists outward at end range. Non-negotiable every session.",spineFlag:null},
+      {id:"tue_05",number:"05",tier:"ISOLATION",name:"Reverse Incline DB Reverse Fly",preferred:false,alt:null,feeders:null,sets:3,repRange:"15–20",rest:"60 sec",notes:"Bench at 30–45°, lie face-down, chest against pad. Fly out until upper arms parallel to floor. Spine fully supported.",spineFlag:null},
+      {id:"tue_06",number:"06",tier:"PRIMARY BICEP — STRENGTH",name:"Barbell Curl",preferred:true,alt:"EZ-Bar Curl (reduces wrist stress)",feeders:"3 Sets: 45% x 6–10 | 65% x 4–6 | 85% x 3–4",sets:4,repRange:"6–8",rest:"2 min",notes:"This is your primary bicep compound. Treat it with the same seriousness as barbell incline press on chest day. Shoulder-width grip or slightly wider. Full hang at the bottom — no partial reps. Curl to the top and squeeze hard for 1 second. Do not swing. Do not let the elbows drift forward. The 6–8 rep range builds the raw bicep thickness and peak that higher rep work cannot replicate. Progressive overload this movement every session you can. This is the movement most directly responsible for arm size change over the block.",spineFlag:null},
+      {id:"tue_07",number:"07",tier:"SUPERSET — BICEPS",name:"Incline DB Curl",subName:"Hammer Curl",preferred:false,alt:null,feeders:null,sets:3,repRangeA:"10–12",repRangeB:"12–15",repRange:"10–12",rest:"60 sec between rounds",notes:"Incline DB curl: bench at 45–60°. Full stretch at bottom of every rep. Rotate immediately to hammer curls. CBum sequencing — peak contraction first (cable curl), stretch position second (incline curl), brachialis finisher third (hammer curl).",spineFlag:null,isSuperset:true},
+      {id:"tue_08",number:"08",tier:"FST-7 BICEP FINISHER",name:"Barbell Curl 21s",preferred:false,alt:"DB Curl 21s",feeders:null,sets:3,repRange:"3 x 21",rest:"60 sec between sets",notes:"7 reps bottom to halfway, 7 reps halfway to top, 7 full reps. One set of 21 hits the bicep at three distinct angles — this is the pump and fascial stretch finisher that ends the bicep portion. Use a weight that makes the final 7 full reps genuinely hard. By the end of set 3 you should be at absolute failure on the full reps. Rambod FST-7 principle applied directly to the bicep.",spineFlag:null},
+    ],
+    finisher:{name:"Straight-Arm Pulldown Pump Finisher",duration:"8–10 MIN",protocol:"4 x 15–20, 30 sec rest. Final set to failure.",notes:"Push hands toward the floor. Isolates lats, removes bicep entirely. Builds lat width and sweep over time.",influence:"Hany Rambod — FST-7 Lat Pump"},
+    sauna:{timing:"POST-SESSION",protocol:"15–20 min. Two 8–10 min rounds with 3–5 min cool break if preferred.",rationale:"Heat reduces systemic inflammation and relaxes paraspinal musculature. Net positive for spinal pathology.",influence:"Attia + Huberman"},
+    cooldown:"Light band pull-aparts x 20. Thoracic foam roller extension — 2 min, gentle. Then sauna.",
+  },
+  WED:{
+    day:"WED",fullDay:"WEDNESDAY",focus:"LEGS + CORE",subtitle:"Posterior Chain Priority",
+    color:C.trouserBlue,colorBg:C.trouserLight,recoveryDemand:"HIGH",sauna:false,
+    saunaNote:"NO SAUNA. Highest recovery demand session of the week. Wednesday recovery is sleep, food, and hydration — nothing else.",
+    warmup:["Athletic Primer: Lateral Bound — 3 x 5 per side","Stationary bike — 3 min easy","Banded clamshells — 2 x 15 per side","Leg swings front-to-back and lateral — 2 x 10 each direction","Hip circles — 2 x 10 per side","Bodyweight squat pattern — 2 x 10"],
+    exercises:[
+      {id:"wed_01",number:"01",tier:"PRIMARY COMPOUND",name:"Leg Press",preferred:true,alt:null,feeders:"3 Sets: 45% x 6–10 | 65% x 4–6 | 85% x 3–4",sets:4,repRange:"10–15",rest:"2–3 min",notes:"Feet shoulder-width, toes out 10–15 degrees. Stop depth before lower back peels off the pad — lumbar must stay in contact throughout. Full extension at the top but do not lock out the knee. No axial spinal loading.",spineFlag:"L3-S1: Stop depth where lumbar stays flat against the pad. Non-negotiable."},
+      {id:"wed_02",number:"02",tier:"SECONDARY COMPOUND",name:"DB Reverse Lunges",preferred:true,alt:"Stationary DB Lunge — same load and rep targets",feeders:"2 Sets: 50% x 6–10 | 70% x 4–6",sets:3,repRange:"10–12 per leg",rest:"75 sec",notes:"Step backward — rear knee travels toward the floor, not the front knee traveling forward. Torso stays upright throughout. Dumbbells at your sides — no barbell, no axial load. Drive through the front heel to stand. The upright torso position is what keeps the lumbar out of it.",spineFlag:null},
+      {id:"wed_03",number:"03",tier:"PRIMARY POSTERIOR CHAIN",name:"Hex Bar Deadlift",preferred:true,alt:"Cable Pull-Through — same rep targets, spine neutral throughout",feeders:"3 Sets: 45% x 6–10 | 65% x 4–6 | 85% x 3–4",sets:4,repRange:"8–10",rest:"2 min",notes:"Neutral handles, hips hinge back to load the posterior chain. The trap bar keeps the load centered over the feet which dramatically reduces lumbar shear versus a straight bar. Drive through the floor, lock out the hips at the top. Do not round the lower back at any point in the range. This is a posterior chain builder — not a max strength test.",spineFlag:"HARD CAP: RPE 6 maximum always. Four to five reps in the tank at all times. The center-of-gravity advantage of the hex bar does not eliminate lumbar risk at heavy loads. Log any pain or radiating symptoms after every session."},
+      {id:"wed_04",number:"04",tier:"ISOLATION",name:"Seated Leg Curl",preferred:false,alt:"Lying Leg Curl — same targets, 2-sec eccentric",feeders:"1 Set: 60% x 6–10",sets:3,repRange:"12–15",rest:"90 sec",notes:"Seated preferred — hamstring in lengthened position at the start of every rep. Superior hypertrophy stimulus. 2-sec eccentric on the return.",spineFlag:null},
+      {id:"wed_05",number:"05",tier:"ISOLATION",name:"Leg Extension",preferred:false,alt:null,feeders:null,sets:3,repRange:"15–20",rest:"60–75 sec",notes:"Terminal extension at the top — full knee extension and hard squeeze. Do not drop the weight on the eccentric.",spineFlag:null},
+      {id:"wed_06",number:"06",tier:"ISOLATION",name:"Standing Calf Raise",preferred:false,alt:"Seated Calf Raise",feeders:null,sets:4,repRange:"15–20",rest:"45 sec",notes:"Full stretch at the bottom, hard squeeze at the top. Do not bounce.",spineFlag:null},
+      {id:"wed_07",number:"07",tier:"SUPERSET — CORE",name:"Plank",subName:"Bird Dog",preferred:false,alt:null,feeders:null,sets:3,repRangeA:"30–45 sec",repRangeB:"8 per side",repRange:"30–45 sec",rest:"During calf raise rest periods",notes:"Plank: no sagging or pike. Bird dog: slow, lumbar neutral. Quality over reps.",spineFlag:null,isSuperset:true,noLog:true},
+    ],
+    finisher:{name:"Sled Superset — Quad Flush",duration:"10–12 MIN",protocol:"4 rounds: Sled Push x 20m + Sled Drag x 20m. 90 sec rest. Moderate load.",notes:"Zero eccentric loading — flushes lactate and accelerates recovery. If your lower back is talking after the main session, skip the finisher.",influence:"SOFlete / Dana Linn Bailey"},
+    cooldown:"Hip flexor stretch 90 sec per side. Quad stretch 60 sec per side. Light walk 2 min.",
+  },
+  THU:{
+    day:"THU",fullDay:"THURSDAY",focus:"SHOULDERS + TRICEPS",subtitle:"Push 2",
+    color:C.scarlet,colorBg:C.scarletLight,recoveryDemand:"MODERATE",sauna:true,
+    warmup:["Band pull-aparts — 2 x 20","Wall slides — 2 x 10","Face pull primer — 2 x 15, light","Light lateral raise — 2 x 15, very light"],
+    exercises:[
+      {id:"thu_01",number:"01",tier:"PRIMARY COMPOUND",name:"Seated Barbell OHP (Power Rack)",preferred:true,alt:"Seated Smith Machine OHP / Iso-Hammer Shoulder Press (Hammer Strength — independent arms, fully supported back, natural arc — cleanest alternative for your pathology)",feeders:"3 Sets: 45% x 6–10 | 65% x 4–6 | 85% x 3–4",sets:4,repRange:"10–15",rest:"2–3 min",notes:"Seated, back supported. Stop at 90% lockout. Never press standing. Iso-Hammer Shoulder Press is the preferred alternative on any day the cervical spine or shoulder is not cooperating. Independent arm loading, fully supported back, natural pressing arc. No ego required in switching to it.",spineFlag:"Monitor C6-C7. Seated and supported always. No standing press ever. Iso-Hammer is the cleanest fallback for your pathology."},
+      {id:"thu_02",number:"02",tier:"ISOLATION",name:"DB Lateral Raise",preferred:false,alt:null,feeders:"1 Set: 60% x 6–10",sets:4,repRange:"15–20",rest:"60–75 sec",notes:"Slight forward lean. Lead with elbows. Pinky rises slightly higher than thumb. No shrugging. 2-sec eccentric.",spineFlag:null},
+      {id:"thu_03",number:"03",tier:"ISOLATION",name:"Cable Lateral Raise (single arm)",preferred:false,alt:"Machine Lateral Raise",feeders:null,sets:3,repRange:"15–20 per arm",rest:"45 sec between arms",notes:"Superior constant tension at the bottom where DBs go slack. Execute immediately after DB raises.",spineFlag:null},
+      {id:"thu_04",number:"04",tier:"WARM-UP PRIME ONLY",name:"Cable Face Pull",preferred:false,alt:null,feeders:null,sets:1,repRange:"15–20",rest:"none",notes:"Warm-up prime only today — working sets happen on Tuesday. 1 x 15–20 light, rope at forehead height, wrists rotate outward at end range. T9-T11 and C6-C7 structural maintenance primer. Tuesday is your designated face pull working set day.",spineFlag:null,noLog:true},
+      {id:"thu_05",number:"05",tier:"ISOLATION",name:"Reverse Incline DB Reverse Fly",preferred:false,alt:null,feeders:null,sets:3,repRange:"15–20",rest:"60 sec",notes:"Identical to Tuesday. Two rear delt sessions per week is the structural requirement.",spineFlag:null},
+      {id:"thu_05b",number:"05b",tier:"PRIMARY TRICEP",name:"Single-Arm Overhead DB Extension",preferred:false,alt:"Overhead Cable Extension — same rep targets",feeders:"2 Sets: 50% x 6–10 | 70% x 4–6",sets:4,repRange:"10–12",rest:"90 sec",notes:"The long head of the tricep is fully stretched in the overhead position — the most effective tricep hypertrophy movement available and the primary driver of horseshoe shape and overall arm thickness. Do not skip this. Monitor C6-C7. Any cervical symptoms switch to overhead cable extension immediately. This goes before the pushdown superset so the long head gets the freshest neural drive.",spineFlag:"C6-C7: Switch to overhead cable extension if any cervical symptoms."},
+      {id:"thu_06",number:"06",tier:"SUPERSET — TRICEPS",name:"Rope Pushdown",subName:"Single-Arm Overhead DB Extension",preferred:false,alt:"Lying Cable Extension or EZ-Bar Skull Crusher if cervical discomfort",feeders:null,sets:3,repRangeA:"15–20",repRangeB:"10–15",repRange:"15–20",rest:"60 sec between rounds",notes:"Rotate immediately. Overhead extension fully stretches the long head. Monitor C6-C7.",spineFlag:"C6-C7: Switch to alternative immediately if symptomatic.",isSuperset:true},
+      {id:"thu_07",number:"07",tier:"OPTIONAL",name:"Cable Curl",preferred:false,alt:null,feeders:null,sets:2,repRange:"15–20",rest:"45 sec",notes:"Only if time allows. Constant tension makes this a strong bicep finisher.",spineFlag:null},
+    ],
+    finisher:{name:"DB Triple Set — Three-Plane Delt Finisher",duration:"8–10 MIN",protocol:"3 rounds, no rest between movements, 30 sec rest between rounds: A) DB Lateral Raise x 15 / B) DB Front Raise x 15 / C) DB Bent-Over Rear Delt Raise x 15",notes:"One pair of dumbbells, three planes of deltoid work, no logistics problem. Lateral raise hits the medial head — the primary driver of shoulder width. Front raise hits the anterior head. Bent-over rear delt raise hits the posterior head — hinge forward slightly at the hips, slight bend in elbows, raise out to the sides until upper arms are parallel to the floor. All three heads in sequence, same weight, three rounds. By round 3 the shoulders should be visibly pumped. Use a weight that lets you complete all 15 reps on round 1 — it will feel heavy enough by round 3. CBum runs this exact structure when cable or machine setup is not practical.",influence:"CBum (three-plane delt) + Hany Rambod FST-7"},
+    sauna:{timing:"POST-SESSION",protocol:"15–20 min. Best sauna day — longest recovery window.",rationale:"Two sessions per week — Tuesday and Thursday — hits Attia's minimum for measurable cardiovascular adaptation.",influence:"Attia + Huberman"},
+    cooldown:"Band pull-aparts x 20. Gentle neck rolls — no cervical loading. Light shoulder stretch 60 sec per side. Then sauna.",
+  },
+  FRI:{
+    day:"FRI",fullDay:"FRIDAY",focus:"BACK + BICEPS + CONDITIONING",subtitle:"Pull 2 — Width",
+    color:C.midnightBlue,colorBg:C.midnightLight,recoveryDemand:"MODERATE-HIGH",sauna:false,
+    saunaNote:"NO SAUNA after Friday. The conditioning finisher already elevates core temperature. Let Saturday rest do its job.",
+    warmup:["Athletic Primer: Reactive Step — 3 x 5 per side","Band pull-aparts — 2 x 20","Scapular retractions — 2 x 10","Face pull primer — 2 x 15, light","Cat-cow on hands and knees — 2 x 10, slow"],
+    exercises:[
+      {id:"fri_01",number:"01",tier:"PRIMARY COMPOUND",name:"Bodyweight Pull-Ups",preferred:true,alt:"Lat Pulldown — dual handles, neutral grip",feeders:"3 Sets: 45% x 6–10 | 65% x 4–6 | 85% x 3–4",sets:4,repRange:"6–10",rest:"2 min",notes:"Dead hang at bottom. Bodyweight only — no added load. Monitor shoulder every session.",spineFlag:"Monitor shoulder every session. Revert to lat pulldown if any pain."},
+      {id:"fri_02",number:"02",tier:"ISOLATION",name:"Straight-Arm Pulldown (cable)",preferred:false,alt:"DB Pullover on flat bench",feeders:"1 Set: 60% x 6–10",sets:3,repRange:"12–15",rest:"75 sec",notes:"Push hands toward the floor. Slight bend in elbows throughout. Isolates lats, removes bicep.",spineFlag:null},
+      {id:"fri_03",number:"03",tier:"SECONDARY COMPOUND",name:"TechnoGym ISO-Low Row",preferred:true,alt:"Single-Arm DB Row",feeders:"2 Sets: 50% x 6–10 | 70% x 4–6",sets:3,repRange:"10–15 per arm",rest:"60 sec between arms",notes:"BLACK ADAM PROTOCOL: 10 alternating reps then 5 bilateral = 15 total reps per set. Same execution as Tuesday. Full stretch at the bottom, pull to the hip. Maximum mid-back contraction on the bilateral finish.",spineFlag:null},
+      {id:"fri_04",number:"04",tier:"SECONDARY COMPOUND",name:"Seated Cable Row (wide grip or V-bar)",preferred:false,alt:null,feeders:"2 Sets: 50% x 6–10 | 70% x 4–6",sets:3,repRange:"12–15",rest:"75 sec",notes:"Neutral spine throughout. Do not hyperextend lumbar at the contracted position.",spineFlag:null},
+      {id:"fri_05",number:"05",tier:"WARM-UP PRIME ONLY",name:"Cable Face Pull",preferred:false,alt:null,feeders:null,sets:1,repRange:"15–20",rest:"none",notes:"Warm-up prime only today — working sets happen on Tuesday. 1 x 15–20 light before the session starts or as a primer between exercises. Tuesday is your designated face pull working set day.",spineFlag:null,noLog:true},
+      {id:"fri_06",number:"06",tier:"SUPERSET — BICEPS",name:"Incline DB Curl",subName:"Reverse Curl",preferred:false,alt:null,feeders:null,sets:3,repRangeA:"10–12",repRangeB:"12–15",repRange:"10–12",rest:"60 sec between rounds",notes:"Incline DB curl: bench at 45–60°, full stretch at bottom. Reverse curl targets brachialis and brachioradialis.",spineFlag:null,isSuperset:true},
+      {id:"fri_07",number:"07",tier:"CBum ISOLATION — BICEPS",name:"Spider Curl",preferred:false,alt:"Concentration Curl — elbow braced against inner thigh, full ROM, maximum squeeze at top",feeders:null,sets:3,repRange:"12–15",rest:"60 sec",notes:"Chest against the incline pad, arms hang perpendicular to the floor — the deepest possible stretch position for the bicep. CBum uses spider curls specifically to target the peak of the bicep. Full range, no swinging, maximum squeeze at the top for 1 second. This is the isolation finisher that ends Friday arm work with maximum blood volume and fascial stretch. If the preacher pad is available use it. If not use the concentration curl alternative.",spineFlag:null},
+    ],
+    finisher:{name:"Sled Conditioning — Zone 3",duration:"15–20 MIN",protocol:"4–6 rounds: Sled Push x 30m, walk back (90 sec recovery). HR target 130–145 bpm.",notes:"Zero eccentric — no meaningful muscle damage on top of the back session. Yellow readiness — substitute stationary bike 15 min. Orange — skip entirely.",influence:"SOFlete / Nick Bare — Hybrid Conditioning"},
+    cooldown:"3 min easy walk. Light back and bicep stretching.",
+  },
+  SUN:{
+    day:"SUN",fullDay:"SUNDAY",focus:"ZONE 2 CARDIO",subtitle:"Aerobic Foundation",
+    color:C.textMuted,colorBg:C.bgAlt,recoveryDemand:"LOW",sauna:false,
+    saunaNote:"OPTIONAL — One round of 15 min is fine if you feel good and haven't hit two sessions this week.",
+    warmup:["Light 5 min walk to ease into Zone 2 pace"],
+    exercises:[
+      {id:"sun_01",number:"01",tier:"ZONE 2 SESSION",name:"Lap Pool Swim",preferred:true,alt:"Stationary Bike — 60–70% max HR (112–130 bpm)",feeders:null,sets:1,repRange:"45–60 min",rest:"continuous",notes:"Most spine-friendly Zone 2 modality. Pace allows full conversation without gasping. Build toward 90 min by Block 3.",spineFlag:null},
+    ],
+    finisher:null,
+    cooldown:"5 min easy walk. Garmin check: Training Effect should read 'Basic Aerobic' or 'Improving Aerobic.'",
+  },
+};
+
+const DAY_ORDER = ["SUN","MON","TUE","WED","THU","FRI"];
+
+const TIER_COLORS = {
+  "PRIMARY COMPOUND":        C.gold,
+  "SECONDARY COMPOUND":      C.trouserBlue,
+  "MANDATORY":               C.scarlet,
+  "ISOLATION":               C.midnightBlue,
+  "ISOLATION — BICEPS":      C.midnightBlue,
+  "PRIMARY TRICEP":          C.gold,
+  "CBum ISOLATION — BICEPS": C.scarlet,
+  "FST-7 BICEP FINISHER":    C.scarlet,
+  "POSTERIOR CHAIN":         C.trouserBlue,
+  "PRIMARY POSTERIOR CHAIN": C.gold,
+  "CONDITIONAL — MONITOR CLOSELY": C.scarlet,
+  "SUPERSET — BICEPS":       C.midnightBlue,
+  "SUPERSET — CORE":         C.midnightBlue,
+  "SUPERSET — TRICEPS":      C.midnightBlue,
+  "ZONE 2 SESSION":          C.textMuted,
+  "OPTIONAL":                C.textFaint,
+  "WARM-UP PRIME ONLY":      C.textFaint,
+};
+
+// ── WARM-UP CALC PANEL ────────────────────────────────────────────
+// Mode working weight multipliers
+// Functional Day: +2 RIR buffer ≈ 87% of working weight
+// Maintenance Day: +3 RIR buffer ≈ 78% of working weight
+const MODE_WEIGHT_MULTIPLIERS = {
+  full:        { pct: 100 },
+  functional:  { pct: 87  },
+  maintenance: { pct: 78  },
+};
+
+function WarmupCalc({ feeders, color, mode }) {
+  const [w, setW] = useState("");
+  const count = feederCount(feeders);
+  if (!count) return null;
+
+  const activeMode = mode || MODES.full;
+  const modeMultiplier = MODE_WEIGHT_MULTIPLIERS[activeMode.id] || MODE_WEIGHT_MULTIPLIERS.full;
+  const baseWeight = parseFloat(w);
+  const modifiedWeight = (baseWeight && !isNaN(baseWeight) && activeMode.id !== "full")
+    ? Math.round(baseWeight * modeMultiplier.pct / 100 / 5) * 5
+    : null;
+  const effectiveWeight = modifiedWeight || baseWeight;
+  const sets = calcWarmup(effectiveWeight, count);
+
+  return (
+    <div style={{background:C.bgAlt,border:`1px solid ${C.border}`,borderLeft:`3px solid ${color}`,borderRadius:"3px",padding:"12px 14px",marginBottom:"12px"}}>
+      <div style={{fontSize:"8px",letterSpacing:"2px",color,textTransform:"uppercase",fontWeight:"bold",marginBottom:"8px"}}>Nippard Warm-Up Sets</div>
+      <input type="number" placeholder="Enter normal working weight (lbs)" value={w} onChange={e=>setW(e.target.value)}
+        style={{width:"100%",marginBottom:"10px",textAlign:"left",padding:"8px 10px",background:"#fff",border:`1px solid ${C.border}`,borderRadius:"3px",fontSize:"13px",fontFamily:"Georgia,serif",color:C.text}}/>
+
+      {baseWeight > 0 && !isNaN(baseWeight) && activeMode.id !== "full" && modifiedWeight && (
+        <div style={{background:activeMode.colorBg,border:`1px solid ${activeMode.color}55`,borderLeft:`3px solid ${activeMode.color}`,borderRadius:"3px",padding:"10px 12px",marginBottom:"12px"}}>
+          <div style={{fontSize:"8px",letterSpacing:"2px",color:activeMode.color,textTransform:"uppercase",fontWeight:"bold",marginBottom:"6px"}}>
+            {activeMode.emoji} {activeMode.label} Working Weight
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <div style={{fontSize:"26px",fontWeight:"bold",color:activeMode.color,lineHeight:1}}>
+                {modifiedWeight}<span style={{fontSize:"13px",fontWeight:"normal",color:C.textMuted}}> lbs</span>
+              </div>
+              <div style={{fontSize:"11px",color:C.textMuted,marginTop:"3px"}}>
+                {modeMultiplier.pct}% of {baseWeight} lbs · +{activeMode.rirAdd} RIR buffer
+              </div>
+            </div>
+            <div style={{fontSize:"10px",color:C.textFaint,fontStyle:"italic",maxWidth:"110px",textAlign:"right",lineHeight:1.4}}>
+              Load this for all working sets today
+            </div>
+          </div>
+        </div>
+      )}
+
+      {sets ? (
+        <div>
+          {baseWeight > 0 && !isNaN(baseWeight) && (
+            <div style={{fontSize:"8px",letterSpacing:"2px",color:C.textFaint,textTransform:"uppercase",marginBottom:"7px"}}>
+              Warm-Up Sets{activeMode.id !== "full" && modifiedWeight ? ` (ramping to ${modifiedWeight} lbs)` : ""}
+            </div>
+          )}
+          {sets.map((s,i)=>(
+            <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:i<sets.length-1?`1px solid ${C.border}`:"none"}}>
+              <div style={{fontSize:"11px",color:C.textMuted,letterSpacing:"1px",textTransform:"uppercase"}}>Set {i+1} — {s.pct}%</div>
+              <div style={{display:"flex",gap:"16px",alignItems:"center"}}>
+                <div style={{fontSize:"17px",fontWeight:"bold",color:C.text}}>{s.weight}<span style={{fontSize:"11px",color:C.textMuted,fontWeight:"normal"}}> lbs</span></div>
+                <div style={{fontSize:"12px",color:C.textMuted}}>{s.reps} reps</div>
+              </div>
+            </div>
+          ))}
+          <div style={{fontSize:"10px",color:C.textFaint,marginTop:"8px",fontStyle:"italic"}}>Rounded to nearest 5 lbs. Adjust to available plates.</div>
+        </div>
+      ) : (
+        <div style={{fontSize:"12px",color:C.textFaint,fontStyle:"italic"}}>Enter your working weight to calculate.</div>
+      )}
+    </div>
+  );
+}
+
+// ── SET LOG ROW ───────────────────────────────────────────────────
+// Global timer registry — persists timers across log open/close
+const activeTimers = {};
+
+function SetLogRow({ si, label, repRange, data, onLog, restSecs, color, exId, isLastInSuperset }) {
+  const timerKey = `${exId}_set${si}`;
+  const [timerVersion, setTimerVersion] = useState(activeTimers[timerKey]||0);
+  const { max } = parseRange(repRange);
+
+  function handleLog(field, val) {
+    onLog(si, field, val);
+    // Double beep on weight or reps log
+    // no beep on log entry
+  }
+
+  function startTimer() {
+    // Schedule bomb drop IMMEDIATELY on tap — iOS Safari requires AudioContext
+    // from a direct user touch event, not a timeout or interval callback
+    scheduleBombDrop(restSecs);
+    const v = (activeTimers[timerKey]||0) + 1;
+    activeTimers[timerKey] = v;
+    setTimerVersion(v);
+  }
+
+  return (
+    <div style={{marginBottom:"8px"}}>
+      <div style={{display:"flex",gap:"6px",alignItems:"center"}}>
+        <div style={{fontSize:"10px",color:C.textMuted,width:"52px",fontWeight:"bold"}}>{label}</div>
+        <input type="number" placeholder={max > 0 ? String(max) : "0"} value={data.weight||""} onChange={e=>handleLog("weight",e.target.value)} style={{flex:1}}/>
+        <input type="number" placeholder={max > 0 ? `${repRange}` : "0"} value={data.reps||""} onChange={e=>handleLog("reps",e.target.value)} style={{flex:1,color:data.reps && parseInt(data.reps)>=max?C.green:C.text}}/>
+        <input type="number" placeholder="RIR" value={data.rir||""} onChange={e=>handleLog("rir",e.target.value)} style={{flex:0.7,color:data.rir!==undefined&&parseInt(data.rir)<=1?C.gold:C.text}}/>
+        {data.weight && data.reps && (
+          <button onClick={startTimer} style={{
+            background:timerVersion>0?"#fff":color,border:`1px solid ${color}`,
+            borderRadius:"3px",padding:"6px 8px",color:timerVersion>0?color:"#fff",
+            fontSize:"9px",fontWeight:"bold",letterSpacing:"1px",whiteSpace:"nowrap",
+          }}>▶ REST</button>
+        )}
+      </div>
+      {timerVersion > 0 && <RestTimer key={timerVersion} seconds={restSecs} onDone={()=>{}} />}
+    </div>
+  );
+}
+
+// ── EXERCISE ROW ──────────────────────────────────────────────────
+function ExerciseRow({ ex, session, week, logA, logB, onLogA, onLogB, mode, timeWindow }) {
+  const [expanded, setExpanded] = useState(false);
+  const [logging,  setLogging]  = useState(false);
+  const [usingAlt, setUsingAlt] = useState(false);
+  const tierColor = TIER_COLORS[ex.tier] || C.textFaint;
+  const activeMode = mode || MODES.full;
+  // Week-aware name resolution for Monday chest alternation
+  const isOddWeek = week % 2 !== 0;
+  const displayName = ex.weekAware
+    ? (isOddWeek ? ex.oddName : ex.evenName)
+    : ex.name;
+  const weekLabel = ex.weekAware
+    ? (isOddWeek ? "ODD WEEK" : "EVEN WEEK")
+    : null;
+  const activeTW = timeWindow || TIME_WINDOWS.full;
+  const originalSets = typeof ex.sets === "number" ? ex.sets : 3;
+  // Time window takes priority over mode for set count when in Full Session mode
+  const twSets = activeMode.id === "full" ? getTimeWindowSets(originalSets, activeTW) : originalSets;
+  const numSets = activeMode.id === "full" ? twSets : getModifiedSets(originalSets, activeMode);
+  const restSecs  = getModifiedRestSecs(parseRestSeconds(ex.rest), activeMode);
+  const completedA = (logA||[]).filter(s=>s&&s.weight&&s.reps);
+  const progressionA = checkProgression(logA, ex.repRange||ex.repRangeA||"");
+  const hasFeeders = feederCount(ex.feeders) > 0;
+
+  return (
+    <div style={{borderBottom:`1px solid ${C.border}`}}>
+      <div onClick={()=>{setExpanded(!expanded);setLogging(false);}} style={{padding:"15px 0",cursor:"pointer",display:"flex",gap:"12px",alignItems:"flex-start"}}>
+        <div style={{fontSize:"10px",color:C.textFaint,fontWeight:"bold",minWidth:"22px",paddingTop:"2px"}}>{ex.number}</div>
+        <div style={{flex:1}}>
+          <div style={{fontSize:"8px",letterSpacing:"2px",color:tierColor,textTransform:"uppercase",fontWeight:"bold",marginBottom:"4px"}}>{ex.tier}</div>
+          <div style={{display:"flex",alignItems:"center",gap:"6px",flexWrap:"wrap",marginBottom:"5px"}}>
+            <div style={{fontSize:"15px",fontWeight:"bold",color:C.text,lineHeight:1.2}}>
+              {displayName}{ex.isSuperset && ex.subName ? <span style={{color:C.textMuted,fontWeight:"normal"}}> / {ex.subName}</span> : ""}
+            </div>
+            {ex.preferred && <span style={{fontSize:"7px",letterSpacing:"1px",color:"#fff",background:session.color,padding:"2px 6px",borderRadius:"2px",fontWeight:"bold",textTransform:"uppercase"}}>PREFERRED</span>}
+            {weekLabel && <span style={{fontSize:"7px",letterSpacing:"1px",color:"#fff",background:isOddWeek?C.trouserBlue:C.gold,padding:"2px 6px",borderRadius:"2px",fontWeight:"bold",textTransform:"uppercase"}}>{weekLabel}</span>}
+            {progressionA && <span style={{fontSize:"7px",letterSpacing:"1px",color:"#fff",background:C.green,padding:"2px 6px",borderRadius:"2px",fontWeight:"bold",textTransform:"uppercase"}}>↑ ADD WEIGHT</span>}
+          </div>
+          <div style={{fontSize:"12px",color:C.textMuted}}>
+            {ex.isSuperset ? `${ex.repRangeA||ex.repRange} / ${ex.repRangeB||""}` : ex.repRange} · {numSets}
+            {activeMode.id !== "full" && numSets !== originalSets ? <span style={{color:activeMode.color}}> of {originalSets}</span> : ""}
+            {activeMode.id === "full" && activeTW.id !== "full" && twSets !== originalSets ? <span style={{color:activeTW.color}}> of {originalSets}</span> : ""}
+            {" "}sets · Rest: {ex.rest}
+          </div>
+          {activeMode.rpeCapNote && !ex.noLog && typeof ex.sets === "number" && (
+            <div style={{fontSize:"10px",color:activeMode.color,marginTop:"2px",fontWeight:"bold"}}>{activeMode.rpeCapNote}</div>
+          )}
+          {ex.alt && (
+            <div style={{marginTop:"4px",display:"flex",alignItems:"center",gap:"6px",flexWrap:"wrap"}}>
+              <div style={{fontSize:"10px",color:usingAlt?session.color:C.textFaint,fontStyle:"italic"}}>
+                {usingAlt ? "USING ALT: " : "Alt: "}{ex.alt.split("/")[0].trim()}
+              </div>
+              {usingAlt && ex.alt.includes("/") && (
+                <div style={{fontSize:"9px",color:C.textFaint,fontStyle:"italic"}}>{ex.alt.split("/").slice(1).join("/").trim()}</div>
+              )}
+            </div>
+          )}
+          {completedA.length > 0 && (
+            <div style={{marginTop:"5px",display:"flex",gap:"4px",flexWrap:"wrap"}}>
+              {completedA.map((s,si)=>(
+                <span key={si} style={{fontSize:"9px",color:C.green,background:C.greenBg,border:`1px solid ${C.greenBorder}`,borderRadius:"2px",padding:"2px 6px"}}>
+                  {s.weight}lb×{s.reps}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{fontSize:"16px",color:C.textFaint,transition:"transform 0.15s",transform:expanded?"rotate(45deg)":"none",paddingTop:"2px"}}>+</div>
+      </div>
+
+      {expanded && (
+        <div style={{paddingBottom:"16px",paddingLeft:"34px"}} onClick={e=>e.stopPropagation()}>
+          {hasFeeders && <WarmupCalc feeders={ex.feeders} color={session.color} mode={activeMode}/>}
+          <div style={{fontSize:"13px",color:C.textMid,lineHeight:1.75,marginBottom:"10px"}}>{ex.notes}</div>
+          {ex.spineFlag && (
+            <div style={{background:C.scarletLight,border:`1px solid ${C.scarletBorder}`,borderLeft:`3px solid ${C.scarlet}`,borderRadius:"3px",padding:"9px 12px",marginBottom:"10px"}}>
+              <div style={{fontSize:"8px",letterSpacing:"2px",color:C.scarlet,textTransform:"uppercase",fontWeight:"bold",marginBottom:"3px"}}>Spine Flag</div>
+              <div style={{fontSize:"12px",color:"#8A1A1A",lineHeight:1.5}}>{ex.spineFlag}</div>
+            </div>
+          )}
+
+          {!ex.noLog && typeof ex.sets === "number" && (
+            <>
+              {ex.alt && (
+                <button onClick={()=>setUsingAlt(!usingAlt)} style={{
+                  background:usingAlt?session.color+"22":"transparent",
+                  border:`1px solid ${usingAlt?session.color:C.borderMid}`,
+                  borderRadius:"3px",padding:"7px 14px",marginRight:"8px",marginBottom:"8px",
+                  color:usingAlt?session.color:C.textFaint,
+                  fontSize:"9px",letterSpacing:"1px",textTransform:"uppercase",fontWeight:"bold",
+                }}>
+                  {usingAlt ? "✓ USING ALT" : "SWITCH TO ALT"}
+                </button>
+              )}
+              <button onClick={()=>setLogging(!logging)} style={{
+                background:logging?session.color:"transparent",
+                border:`1px solid ${logging?session.color:C.borderMid}`,
+                borderRadius:"3px",padding:"8px 16px",
+                color:logging?"#fff":C.textMuted,
+                fontSize:"9px",letterSpacing:"2px",textTransform:"uppercase",
+                fontWeight:"bold",marginBottom:logging?"14px":"0",
+              }}>
+                {logging?"CLOSE LOG":"LOG SETS"}
+              </button>
+
+              {logging && (
+                <div style={{marginTop:"12px"}}>
+                  {/* Header row */}
+                  <div style={{display:"flex",gap:"6px",marginBottom:"8px"}}>
+                    <div style={{width:"52px"}}/>
+                    <div style={{flex:1,fontSize:"9px",color:C.textFaint,textAlign:"center",letterSpacing:"1px",textTransform:"uppercase"}}>LBS</div>
+                    <div style={{flex:1,fontSize:"9px",color:C.textFaint,textAlign:"center",letterSpacing:"1px",textTransform:"uppercase"}}>REPS</div>
+                    <div style={{flex:0.7,fontSize:"9px",color:C.textFaint,textAlign:"center",letterSpacing:"1px",textTransform:"uppercase"}}>RIR</div>
+                    <div style={{width:"52px"}}/>
+                  </div>
+
+                  {/* Alt indicator in log */}
+                  {usingAlt && ex.alt && (
+                    <div style={{background:session.colorBg,border:`1px solid ${session.color}44`,borderLeft:`3px solid ${session.color}`,borderRadius:"3px",padding:"7px 10px",marginBottom:"10px"}}>
+                      <div style={{fontSize:"8px",letterSpacing:"2px",color:session.color,textTransform:"uppercase",fontWeight:"bold",marginBottom:"2px"}}>Logging Alternative</div>
+                      <div style={{fontSize:"11px",color:C.textMid}}>{ex.alt.split("/")[0].trim()}</div>
+                    </div>
+                  )}
+                  {/* Movement A */}
+                  {ex.isSuperset && (
+                    <div style={{fontSize:"9px",letterSpacing:"2px",color:session.color,textTransform:"uppercase",fontWeight:"bold",marginBottom:"6px"}}>
+                      A — {usingAlt && ex.alt ? ex.alt.split("/")[0].trim() : ex.name}
+                    </div>
+                  )}
+                  {[...Array(numSets)].map((_,si)=>(
+                    <SetLogRow key={`a${si}`}
+                      si={si} label={`Set ${si+1}`}
+                      repRange={ex.repRangeA||ex.repRange||""}
+                      data={(logA||[])[si]||{}}
+                      onLog={onLogA}
+                      restSecs={restSecs}
+                      color={session.color}
+                      exId={ex.id+"_a"}
+                      isLastInSuperset={ex.isSuperset ? false : si===numSets-1}
+                    />
+                  ))}
+
+                  {/* Movement B for supersets */}
+                  {ex.isSuperset && ex.subName && (
+                    <>
+                      <div style={{height:"1px",background:C.border,margin:"12px 0"}}/>
+                      <div style={{fontSize:"9px",letterSpacing:"2px",color:session.color,textTransform:"uppercase",fontWeight:"bold",marginBottom:"6px"}}>
+                        B — {ex.subName}
+                      </div>
+                      {[...Array(numSets)].map((_,si)=>(
+                        <SetLogRow key={`b${si}`}
+                          si={si} label={`Set ${si+1}`}
+                          repRange={ex.repRangeB||ex.repRange||""}
+                          data={(logB||[])[si]||{}}
+                          onLog={onLogB}
+                          restSecs={restSecs}
+                          color={session.color}
+                          exId={ex.id+"_b"}
+                          isLastInSuperset={si===numSets-1}
+                        />
+                      ))}
+                    </>
+                  )}
+
+                  {progressionA && (
+                    <div style={{background:C.greenBg,border:`1px solid ${C.greenBorder}`,borderLeft:`3px solid ${C.green}`,borderRadius:"3px",padding:"9px 12px",marginTop:"10px"}}>
+                      <div style={{fontSize:"8px",letterSpacing:"2px",color:C.green,textTransform:"uppercase",fontWeight:"bold",marginBottom:"3px"}}>Double Progression</div>
+                      <div style={{fontSize:"12px",color:"#2A5A40",lineHeight:1.4}}>All sets at top of range with RIR ≥ 1. Add weight next session.</div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── EXPAND CARD ───────────────────────────────────────────────────
+function ExpandCard({ label, sublabel, influence, color, colorBg, children }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{marginBottom:"10px"}}>
+      <div onClick={()=>setOpen(!open)} style={{
+        background:open?colorBg:C.bgCard,border:`1px solid ${open?color:C.border}`,
+        borderRadius:"3px",padding:"13px 14px",cursor:"pointer",
+        display:"flex",justifyContent:"space-between",alignItems:"center",
+      }}>
+        <div>
+          <div style={{fontSize:"8px",letterSpacing:"3px",color:open?color:C.textFaint,textTransform:"uppercase",fontWeight:"bold",marginBottom:"3px"}}>{label}</div>
+          <div style={{fontSize:"14px",fontWeight:"bold",color:C.text}}>{sublabel}</div>
+          {influence && <div style={{fontSize:"9px",color:C.textFaint,marginTop:"2px",fontStyle:"italic"}}>{influence}</div>}
+        </div>
+        <div style={{fontSize:"16px",color:open?color:C.textFaint,transition:"transform 0.15s",transform:open?"rotate(45deg)":"none"}}>+</div>
+      </div>
+      {open && (
+        <div style={{background:C.bgCard,border:`1px solid ${C.border}`,borderTop:"none",borderRadius:"0 0 3px 3px",padding:"14px"}}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── BODY COMP TRACKER ─────────────────────────────────────────────
+function BodyCompView({ phase }) {
+  const [log, setLog] = useState(() => LS.get("block1_bodycomp") || []);
+  const [wt,  setWt]  = useState("");
+  const [bf,  setBf]  = useState("");
+  const [note,setNote]= useState("");
+  const [neck,  setNeck]   = useState("");
+  const [waist, setWaist]  = useState("");
+  const [height,setHeight] = useState("");
+  const [navyBF,setNavyBF] = useState("");
+
+  function calcNavyBF() {
+    const n = parseFloat(neck), w = parseFloat(waist), h = parseFloat(height);
+    if (!n||!w||!h||w<=n) return;
+    // Navy method for men: BF% = 86.010 * log10(waist-neck) - 70.041 * log10(height) + 36.76
+    const result = (86.010 * Math.log10(w - n) - 70.041 * Math.log10(h) + 36.76).toFixed(1);
+    setNavyBF(result);
+    setBf(result); // auto-populate the BF field
+  }
+
+  function addEntry() {
+    if (!wt) return;
+    const entry = { date: new Date().toLocaleDateString(), weight: parseFloat(wt), bf: bf ? parseFloat(bf) : null, note };
+    const newLog = [...log, entry];
+    setLog(newLog);
+    LS.set("block1_bodycomp", newLog);
+    setWt(""); setBf(""); setNote("");
+  }
+
+  const recent = [...log].slice(-10);
+  const minW = recent.length ? Math.min(...recent.map(e=>e.weight)) - 5 : 150;
+  const maxW = recent.length ? Math.max(...recent.map(e=>e.weight)) + 5 : 220;
+
+  return (
+    <div style={{padding:"20px 18px"}}>
+      <div style={{fontSize:"9px",letterSpacing:"3px",color:C.textFaint,textTransform:"uppercase",marginBottom:"18px",fontWeight:"bold"}}>Body Composition</div>
+
+      {/* Entry form */}
+      {/* Navy BF% Calculator */}
+      <div style={{background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:"4px",padding:"16px",marginBottom:"12px"}}>
+        <div style={{fontSize:"9px",letterSpacing:"2px",color:C.midnightBlue,textTransform:"uppercase",fontWeight:"bold",marginBottom:"4px"}}>Navy BF% Calculator</div>
+        <div style={{fontSize:"10px",color:C.textFaint,marginBottom:"12px"}}>Neck · Waist · Height in inches → auto-populates BF% below</div>
+        <div style={{display:"flex",gap:"8px",marginBottom:"10px"}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:"9px",color:C.textFaint,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"4px"}}>Neck (in)</div>
+            <input type="number" placeholder="15.5" value={neck} onChange={e=>setNeck(e.target.value)} style={{width:"100%"}}/>
+          </div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:"9px",color:C.textFaint,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"4px"}}>Waist (in)</div>
+            <input type="number" placeholder="34.0" value={waist} onChange={e=>setWaist(e.target.value)} style={{width:"100%"}}/>
+          </div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:"9px",color:C.textFaint,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"4px"}}>Height (in)</div>
+            <input type="number" placeholder="71" value={height} onChange={e=>setHeight(e.target.value)} style={{width:"100%"}}/>
+          </div>
+        </div>
+        <button onClick={calcNavyBF} style={{
+          width:"100%",padding:"10px",background:C.midnightBlue,border:"none",borderRadius:"3px",
+          color:"#fff",fontSize:"9px",fontWeight:"bold",letterSpacing:"2px",textTransform:"uppercase",
+          marginBottom: navyBF ? "10px" : "0",
+        }}>CALCULATE</button>
+        {navyBF && (
+          <div style={{background:C.midnightLight,border:`1px solid ${C.midnightBorder}`,borderLeft:`3px solid ${C.midnightBlue}`,borderRadius:"3px",padding:"10px 12px"}}>
+            <div style={{fontSize:"8px",letterSpacing:"2px",color:C.midnightBlue,textTransform:"uppercase",marginBottom:"3px",fontWeight:"bold"}}>Navy Method Result</div>
+            <div style={{fontSize:"22px",fontWeight:"bold",color:C.midnightBlue}}>{navyBF}% <span style={{fontSize:"12px",color:C.textMuted,fontWeight:"normal"}}>body fat — auto-populated below</span></div>
+          </div>
+        )}
+      </div>
+
+      {/* Log entry */}
+      <div style={{background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:"4px",padding:"16px",marginBottom:"20px"}}>
+        <div style={{fontSize:"9px",letterSpacing:"2px",color:phase.color,textTransform:"uppercase",fontWeight:"bold",marginBottom:"12px"}}>Log Today</div>
+        <div style={{display:"flex",gap:"8px",marginBottom:"10px"}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:"9px",color:C.textFaint,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"4px"}}>Weight (lbs)</div>
+            <input type="number" placeholder="185" value={wt} onChange={e=>setWt(e.target.value)} style={{width:"100%"}}/>
+          </div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:"9px",color:C.textFaint,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"4px"}}>Body Fat %</div>
+            <input type="number" placeholder="15.0" value={bf} onChange={e=>setBf(e.target.value)} style={{width:"100%",background:navyBF&&bf===navyBF?C.midnightLight:"#fff",borderColor:navyBF&&bf===navyBF?C.midnightBlue:C.border}}/>
+          </div>
+        </div>
+        <button onClick={addEntry} style={{
+          width:"100%",padding:"12px",background:phase.color,border:"none",borderRadius:"3px",
+          color:"#fff",fontSize:"10px",fontWeight:"bold",letterSpacing:"2px",textTransform:"uppercase",
+        }}>LOG ENTRY</button>
+      </div>
+
+      {/* Weight chart */}
+      {recent.length >= 2 && (
+        <div style={{background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:"4px",padding:"16px",marginBottom:"16px"}}>
+          <div style={{fontSize:"9px",letterSpacing:"2px",color:C.textFaint,textTransform:"uppercase",fontWeight:"bold",marginBottom:"12px"}}>Weight Trend</div>
+          <svg width="100%" height="120" viewBox={`0 0 ${recent.length*40} 120`} preserveAspectRatio="none">
+            <polyline
+              points={recent.map((e,i)=>`${i*40+20},${120-((e.weight-minW)/(maxW-minW))*100}`).join(" ")}
+              fill="none" stroke={phase.color} strokeWidth="2" strokeLinejoin="round"
+            />
+            {recent.map((e,i)=>{
+              const cx = i*40+20;
+              const cy = 120-((e.weight-minW)/(maxW-minW))*100;
+              const labelRight = cx < (recent.length*40)/2;
+              return (
+                <g key={i}>
+                  <circle cx={cx} cy={cy} r="3" fill={phase.color}/>
+                  <text
+                    x={labelRight ? cx+6 : cx-6}
+                    y={cy+4}
+                    textAnchor={labelRight?"start":"end"}
+                    fontSize="8"
+                    fill={C.textMuted}
+                  >{e.weight}</text>
+                </g>
+              );
+            })}
+          </svg>
+          <div style={{display:"flex",justifyContent:"space-between",marginTop:"4px"}}>
+            {recent.map((e,i)=>(
+              <div key={i} style={{fontSize:"8px",color:C.textFaint,textAlign:"center",flex:1}}>{e.date.split("/").slice(0,2).join("/")}</div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Log table */}
+      {log.length > 0 && (
+        <div style={{background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:"4px",overflow:"hidden"}}>
+          <div style={{padding:"12px 14px",borderBottom:`1px solid ${C.border}`,display:"flex",gap:"8px"}}>
+            <div style={{flex:2,fontSize:"9px",color:C.textFaint,letterSpacing:"1px",textTransform:"uppercase",fontWeight:"bold"}}>Date</div>
+            <div style={{flex:1,fontSize:"9px",color:C.textFaint,letterSpacing:"1px",textTransform:"uppercase",fontWeight:"bold",textAlign:"center"}}>Weight</div>
+            <div style={{flex:1,fontSize:"9px",color:C.textFaint,letterSpacing:"1px",textTransform:"uppercase",fontWeight:"bold",textAlign:"center"}}>BF%</div>
+          </div>
+          {[...log].reverse().slice(0,10).map((e,i)=>(
+            <div key={i} style={{padding:"10px 14px",borderBottom:`1px solid ${C.border}`,display:"flex",gap:"8px",alignItems:"center"}}>
+              <div style={{flex:2,fontSize:"12px",color:C.textMid}}>{e.date}</div>
+              <div style={{flex:1,fontSize:"13px",fontWeight:"bold",color:phase.color,textAlign:"center"}}>{e.weight}</div>
+              <div style={{flex:1,fontSize:"13px",color:C.textMuted,textAlign:"center"}}>{e.bf || "—"}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {log.length === 0 && (
+        <div style={{textAlign:"center",padding:"40px 20px",color:C.textFaint,fontSize:"13px",fontStyle:"italic"}}>
+          No entries yet. Log your first body composition data above.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── EXCEL EXPORT ─────────────────────────────────────────────────
+function exportToExcel(sessionLog, readinessLog, bodyCompLog, week) {
+  // Build CSV content for each data type then combine into one download
+  const rows = [];
+
+  // Header
+  rows.push(["RAYMOND — BLOCK 1 TRAINING LOG"]);
+  rows.push(["Exported:", new Date().toLocaleDateString()]);
+  rows.push([]);
+
+  // Session Log
+  rows.push(["SESSION LOG"]);
+  rows.push(["Exercise","Week","Set","Weight (lbs)","Reps","RIR"]);
+  Object.entries(sessionLog).forEach(([key, sets]) => {
+    const parts = key.split("_w");
+    const exId = parts[0];
+    const wk = parts[1] ? parts[1].replace("_a","").replace("_b","") : "?";
+    const side = key.includes("_b") ? " (B)" : key.includes("_a") ? " (A)" : "";
+    (sets||[]).forEach((s,i) => {
+      if (s && s.weight) {
+        rows.push([exId + side, "Week " + wk, "Set " + (i+1), s.weight, s.reps||"", s.rir||""]);
+      }
+    });
+  });
+  rows.push([]);
+
+  // Readiness Log
+  rows.push(["READINESS LOG"]);
+  rows.push(["Date","Score","Tier"]);
+  Object.entries(readinessLog).forEach(([date, entry]) => {
+    rows.push([date, entry.score, entry.tier]);
+  });
+  rows.push([]);
+
+  // Body Comp Log
+  rows.push(["BODY COMPOSITION LOG"]);
+  rows.push(["Date","Weight (lbs)","Body Fat %"]);
+  (bodyCompLog||[]).forEach(entry => {
+    rows.push([entry.date, entry.weight, entry.bf||""]);
+  });
+
+  // Convert to CSV
+  const csv = rows.map(r => r.map(cell => `"${String(cell||"").replace(/"/g,'""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], {type:"text/csv"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `raymond_block1_week${week}_${new Date().toISOString().split("T")[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── MAIN APP ──────────────────────────────────────────────────────
+function App() {
+  const [view,       setView]       = useState("session");
+  const [activeDay,  setActiveDay]  = useState("MON");
+  const [week,       setWeek]       = useState(() => LS.get("block1_week") || 1);
+  const [sessionLog, setSessionLog] = useState(() => LS.get("block1_log") || {});
+  const [completedSessions, setCompletedSessions] = useState(() => LS.get("block1_completed") || {});
+  const [readinessLog, setReadinessLog] = useState(() => LS.get("block1_readiness") || {});
+  const [sessionMode, setSessionMode] = useState("full");
+  const [timeWindow, setTimeWindow] = useState("full");
+  const [screenFlash, setScreenFlash] = useState(false);
+  const [ri,    setRi]    = useState({bodyBattery:70,sleepScore:75,trainingReadiness:65,hrv:"favorable",restingHR:"at",soreness:2,motivation:8});
+  const [todayScore, setTodayScore] = useState(null);
+
+  const phase   = getPhase(week);
+  const session = SESSIONS[activeDay];
+  const today   = new Date().toDateString();
+  const activeMode = MODES[sessionMode] || MODES.full;
+  const activeTW = (sessionMode === "full") ? (TIME_WINDOWS[timeWindow] || TIME_WINDOWS.full) : TIME_WINDOWS.full;
+
+  // Wire global screen flash to App state
+  globalFlashFn = () => {
+    setScreenFlash(true);
+    setTimeout(() => setScreenFlash(false), 3500);
+  };
+
+  function handleWeekChange(w) { setWeek(w); LS.set("block1_week", w); }
+
+  function getLogA(exId) { return sessionLog[`${exId}_w${week}_a`] || []; }
+  function getLogB(exId) { return sessionLog[`${exId}_w${week}_b`] || []; }
+
+  function handleLog(exId, ab, si, field, val) {
+    const key  = `${exId}_w${week}_${ab}`;
+    const curr = sessionLog[key] || [];
+    const upd  = [...curr];
+    if (!upd[si]) upd[si] = {};
+    upd[si][field] = val;
+    const newLog = {...sessionLog, [key]: upd};
+    setSessionLog(newLog);
+    LS.set("block1_log", newLog);
+  }
+
+  function markComplete() {
+    const key = `${activeDay}_w${week}`;
+    const newC = {...completedSessions, [key]: { date: today, timestamp: Date.now() }};
+    setCompletedSessions(newC);
+    LS.set("block1_completed", newC);
+  }
+
+  const isComplete = !!completedSessions[`${activeDay}_w${week}`];
+
+  function handleReadiness() {
+    const score = scoreReadiness(ri);
+    const entry = { score, tier: getTier(score).tier, date: today };
+    const newLog = {...readinessLog, [today]: entry};
+    setReadinessLog(newLog);
+    setTodayScore(score);
+    LS.set("block1_readiness", newLog);
+    // Auto-suggest session mode based on score
+    if (score >= 56) setSessionMode("full");
+    else if (score >= 42) setSessionMode("functional");
+    else setSessionMode("maintenance");
+  }
+
+  return (
+    <div style={{
+      minHeight:"100vh",
+      background: screenFlash ? "#2E7D52" : C.bg,
+      color:C.text,
+      fontFamily:"Georgia,'Times New Roman',serif",
+      paddingBottom:"80px",
+      transition: screenFlash ? "background 0.05s" : "background 0.4s",
+    }}>
+
+      {/* ── TOP NAV ── */}
+      <div style={{background:C.bgHeader,borderBottom:`1px solid ${C.border}`,padding:"18px 18px 0",position:"sticky",top:0,zIndex:20}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"12px"}}>
+          <div>
+            <div style={{fontSize:"8px",letterSpacing:"4px",color:C.textFaint,textTransform:"uppercase",marginBottom:"3px"}}>AmFam Swift Creek</div>
+            <div style={{fontSize:"15px",fontWeight:"bold",letterSpacing:"1px",color:C.midnightBlue,textTransform:"uppercase"}}>Block 1 — Hypertrophy</div>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:"5px"}}>
+            <div style={{fontSize:"8px",color:C.textFaint,letterSpacing:"2px",textTransform:"uppercase"}}>WEEK</div>
+            <div style={{display:"flex",gap:"3px"}}>
+              {[...Array(10)].map((_,i)=>{
+                const wk = i+1;
+                const isActive = week === wk;
+                return (
+                  <div key={i} onClick={()=>handleWeekChange(wk)} style={{
+                    width:"18px",height:"18px",borderRadius:"2px",display:"flex",alignItems:"center",justifyContent:"center",
+                    background:isActive?phase.color:C.bgCard,
+                    border:`1px solid ${isActive?phase.color:C.border}`,
+                    color:isActive?"#fff":C.textFaint,
+                    fontSize:"9px",fontWeight:"bold",cursor:"pointer",
+                  }}>{wk}</div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Phase badge */}
+        <div style={{background:phase.colorBg,border:`1px solid ${phase.color}55`,borderLeft:`3px solid ${phase.color}`,borderRadius:"3px",padding:"8px 12px",marginBottom:"12px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+            <div>
+              <div style={{fontSize:"8px",letterSpacing:"2px",color:phase.color,textTransform:"uppercase",fontWeight:"bold"}}>{phase.name} — WKS {phase.weeks}</div>
+              <div style={{fontSize:"12px",color:C.textMid,marginTop:"2px"}}>{phase.rir}</div>
+            </div>
+            <div style={{fontSize:"10px",color:C.textMuted,maxWidth:"155px",textAlign:"right",lineHeight:1.4}}>{phase.note}</div>
+          </div>
+        </div>
+
+        {/* View tabs */}
+        <div style={{display:"flex",borderBottom:`1px solid ${C.border}`}}>
+          {[["session","SESSION"],["readiness","READINESS"],["tracker","TRACKER"],["bodycomp","BODY COMP"]].map(([v,l])=>(
+            <button key={v} onClick={()=>setView(v)} style={{
+              flex:1,padding:"10px 2px",background:"transparent",border:"none",
+              borderBottom:`2px solid ${view===v?phase.color:"transparent"}`,
+              color:view===v?phase.color:C.textMuted,
+              fontSize:"8px",letterSpacing:"1.5px",textTransform:"uppercase",fontWeight:view===v?"bold":"normal",
+            }}>{l}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* ══ SESSION VIEW ══ */}
+      {view === "session" && (
+        <div>
+          {/* Day tabs */}
+          <div style={{padding:"12px 18px",borderBottom:`1px solid ${C.border}`,display:"flex",gap:"5px",background:C.bgCard}}>
+            {DAY_ORDER.map(d=>{
+              const s = SESSIONS[d];
+              const done = !!completedSessions[`${d}_w${week}`];
+              return (
+                <button key={d} onClick={()=>{setActiveDay(d);setTimeWindow("full");}} style={{
+                  flex:1,padding:"8px 2px",
+                  background:activeDay===d?s.color:"transparent",
+                  border:`1px solid ${activeDay===d?s.color:done?C.green:C.border}`,
+                  borderRadius:"3px",
+                  color:activeDay===d?"#fff":done?C.green:C.textMuted,
+                  fontSize:"9px",fontWeight:activeDay===d?"bold":"normal",
+                  letterSpacing:"1px",textTransform:"uppercase",
+                  position:"relative",
+                }}>{done&&activeDay!==d?"✓":d}</button>
+              );
+            })}
+          </div>
+
+          {/* Session header */}
+          <div style={{padding:"18px 18px 14px",borderBottom:`1px solid ${C.border}`,background:session.colorBg}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"12px"}}>
+              <div>
+                <div style={{fontSize:"22px",fontWeight:"bold",color:session.color,lineHeight:1.1}}>{session.focus}</div>
+                <div style={{fontSize:"11px",color:C.textMuted,marginTop:"3px",fontStyle:"italic"}}>{session.subtitle}</div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontSize:"9px",color:C.textMuted,letterSpacing:"2px",textTransform:"uppercase"}}>{session.recoveryDemand}</div>
+                {session.sauna && <div style={{fontSize:"8px",color:C.gold,marginTop:"3px",letterSpacing:"1px",textTransform:"uppercase",fontWeight:"bold"}}>SAUNA ✓</div>}
+                {isComplete && <div style={{fontSize:"8px",color:C.green,marginTop:"3px",letterSpacing:"1px",textTransform:"uppercase",fontWeight:"bold"}}>✓ COMPLETE</div>}
+              </div>
+            </div>
+
+            {/* Mode selector */}
+            <div style={{marginBottom: activeMode.id !== "full" ? "10px" : "0"}}>
+              <div style={{fontSize:"8px",letterSpacing:"2px",color:C.textFaint,textTransform:"uppercase",fontWeight:"bold",marginBottom:"7px"}}>Session Mode</div>
+              <div style={{display:"flex",gap:"6px"}}>
+                {Object.values(MODES).map(m => (
+                  <button key={m.id} onClick={() => setSessionMode(m.id)} style={{
+                    flex:1, padding:"8px 4px",
+                    background: sessionMode === m.id ? m.color : C.bgCard,
+                    border: `1px solid ${sessionMode === m.id ? m.color : C.border}`,
+                    borderRadius:"3px",
+                    color: sessionMode === m.id ? "#fff" : C.textMuted,
+                    fontSize:"8px", fontWeight: sessionMode === m.id ? "bold" : "normal",
+                    letterSpacing:"0.5px", textTransform:"uppercase", lineHeight:1.4,
+                  }}>
+                    <div style={{fontSize:"14px",marginBottom:"2px"}}>{m.emoji}</div>
+                    <div>{m.label.split(" ")[0]}</div>
+                    <div>{m.label.split(" ").slice(1).join(" ")}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Mode banner */}
+            {activeMode.bannerNote && (
+              <div style={{
+                background: activeMode.colorBg,
+                border: `1px solid ${activeMode.color}55`,
+                borderLeft: `3px solid ${activeMode.color}`,
+                borderRadius:"3px", padding:"9px 12px", marginTop:"10px",
+              }}>
+                <div style={{fontSize:"11px",color:activeMode.color,lineHeight:1.5,fontWeight:"bold"}}>{activeMode.bannerNote}</div>
+              </div>
+            )}
+
+            {/* Time window selector — Full Session only */}
+            {sessionMode === "full" && (
+              <div style={{marginTop:"12px"}}>
+                <div style={{fontSize:"8px",letterSpacing:"2px",color:C.textFaint,textTransform:"uppercase",fontWeight:"bold",marginBottom:"7px"}}>Session Duration</div>
+                <div style={{display:"flex",gap:"6px"}}>
+                  {Object.values(TIME_WINDOWS).map(tw => (
+                    <button key={tw.id} onClick={()=>setTimeWindow(tw.id)} style={{
+                      flex:1, padding:"8px 4px",
+                      background: timeWindow===tw.id ? tw.color : C.bgCard,
+                      border: `1px solid ${timeWindow===tw.id ? tw.color : C.border}`,
+                      borderRadius:"3px",
+                      color: timeWindow===tw.id ? "#fff" : C.textMuted,
+                      fontSize:"9px", fontWeight: timeWindow===tw.id ? "bold" : "normal",
+                      letterSpacing:"0.5px", textTransform:"uppercase", lineHeight:1.4,
+                    }}>
+                      <div style={{fontSize:"14px",marginBottom:"2px"}}>{tw.emoji}</div>
+                      <div>{tw.label}</div>
+                    </button>
+                  ))}
+                </div>
+                {activeTW.banner && (
+                  <div style={{background:activeTW.color+"11",border:`1px solid ${activeTW.color}44`,borderLeft:`3px solid ${activeTW.color}`,borderRadius:"3px",padding:"8px 12px",marginTop:"8px"}}>
+                    <div style={{fontSize:"11px",color:activeTW.color,lineHeight:1.5,fontWeight:"bold"}}>{activeTW.banner}</div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Warm-up */}
+          <div style={{padding:"14px 18px",borderBottom:`1px solid ${C.border}`,background:C.bgCard}}>
+            <div style={{fontSize:"8px",letterSpacing:"3px",color:C.textFaint,textTransform:"uppercase",fontWeight:"bold",marginBottom:"9px"}}>Warm-Up</div>
+            {session.warmup.map((item,i)=>(
+              <div key={i} style={{fontSize:"12px",color:C.textMid,padding:"4px 0",borderBottom:i<session.warmup.length-1?`1px solid ${C.bgAlt}`:"none",lineHeight:1.4}}>{item}</div>
+            ))}
+          </div>
+
+          {/* Exercises */}
+          <div style={{padding:"0 18px",background:C.bgCard}}>
+            {session.exercises.map(ex=>{
+              const visible = exVisibleInWindow(ex, activeTW);
+              if (!visible) {
+                return (
+                  <div key={ex.id} style={{borderBottom:`1px solid ${C.border}`,padding:"12px 0",display:"flex",gap:"12px",alignItems:"center",opacity:0.4}}>
+                    <div style={{fontSize:"10px",color:C.textFaint,minWidth:"22px"}}>{ex.number}</div>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:"8px",letterSpacing:"2px",color:C.textFaint,textTransform:"uppercase",marginBottom:"3px"}}>{ex.tier}</div>
+                      <div style={{fontSize:"13px",color:C.textFaint,textDecoration:"line-through"}}>{ex.name}{ex.isSuperset&&ex.subName?` / ${ex.subName}`:""}</div>
+                    </div>
+                    <div style={{fontSize:"9px",color:activeTW.color,letterSpacing:"1px",textTransform:"uppercase",fontWeight:"bold",whiteSpace:"nowrap"}}>{activeTW.dropNote}</div>
+                  </div>
+                );
+              }
+              return (
+                <ExerciseRow key={ex.id} ex={ex} session={session} week={week}
+                  logA={getLogA(ex.id)} logB={getLogB(ex.id)}
+                  onLogA={(si,field,val)=>handleLog(ex.id,"a",si,field,val)}
+                  onLogB={(si,field,val)=>handleLog(ex.id,"b",si,field,val)}
+                  mode={activeMode}
+                  timeWindow={activeTW}
+                />
+              );
+            })}
+          </div>
+
+          {/* Cooldown + cards */}
+          <div style={{padding:"14px 18px 0",background:C.bgCard}}>
+            <div style={{background:C.bgAlt,border:`1px solid ${C.border}`,borderRadius:"3px",padding:"12px 14px",marginBottom:"10px"}}>
+              <div style={{fontSize:"8px",letterSpacing:"3px",color:C.textFaint,textTransform:"uppercase",fontWeight:"bold",marginBottom:"6px"}}>Cooldown</div>
+              <div style={{fontSize:"12px",color:C.textMid,lineHeight:1.6}}>{session.cooldown}</div>
+            </div>
+
+            {session.finisher && !activeMode.skipFinisher && activeTW.keepFinisher && (
+              <ExpandCard label={`Optional Finisher — ${session.finisher.duration}`} sublabel={session.finisher.name} influence={session.finisher.influence} color={session.color} colorBg={session.colorBg}>
+                <div style={{background:session.colorBg,border:`1px solid ${session.color}44`,borderLeft:`3px solid ${session.color}`,borderRadius:"3px",padding:"9px 12px",marginBottom:"11px"}}>
+                  <div style={{fontSize:"8px",letterSpacing:"2px",color:session.color,textTransform:"uppercase",fontWeight:"bold",marginBottom:"4px"}}>Protocol</div>
+                  <div style={{fontSize:"12px",color:C.textMid,lineHeight:1.5}}>{session.finisher.protocol}</div>
+                </div>
+                <div style={{fontSize:"12px",color:C.textMid,lineHeight:1.7}}>{session.finisher.notes}</div>
+              </ExpandCard>
+            )}
+
+            {session.finisher && (activeMode.skipFinisher || !activeTW.keepFinisher) && (
+              <div style={{background:C.bgAlt,border:`1px solid ${C.border}`,borderLeft:`3px solid ${activeMode.color}`,borderRadius:"3px",padding:"12px 14px",marginBottom:"10px"}}>
+                <div style={{fontSize:"8px",letterSpacing:"3px",color:activeMode.color,textTransform:"uppercase",fontWeight:"bold",marginBottom:"5px"}}>{activeMode.emoji} Finisher Skipped</div>
+                <div style={{fontSize:"11px",color:C.textMuted,lineHeight:1.5}}>{session.finisher.name} is skipped in {activeMode.label} mode. You have somewhere to be — get there fresh.</div>
+              </div>
+            )}
+
+            {session.sauna ? (
+              <ExpandCard label="Dry Sauna — Post-Session" sublabel="15–20 Min" influence={session.sauna.influence} color={C.gold} colorBg={C.goldLight}>
+                <div style={{background:C.goldLight,border:`1px solid ${C.goldBorder}`,borderLeft:`3px solid ${C.gold}`,borderRadius:"3px",padding:"9px 12px",marginBottom:"11px"}}>
+                  <div style={{fontSize:"8px",letterSpacing:"2px",color:C.gold,textTransform:"uppercase",fontWeight:"bold",marginBottom:"4px"}}>Protocol</div>
+                  <div style={{fontSize:"12px",color:C.textMid,lineHeight:1.5}}>{session.sauna.protocol}</div>
+                </div>
+                <div style={{fontSize:"12px",color:C.textMid,lineHeight:1.7}}>{session.sauna.rationale}</div>
+              </ExpandCard>
+            ) : (
+              <div style={{background:C.bgAlt,border:`1px solid ${C.border}`,borderLeft:`3px solid ${C.borderMid}`,borderRadius:"3px",padding:"12px 14px",marginBottom:"10px"}}>
+                <div style={{fontSize:"8px",letterSpacing:"3px",color:C.textFaint,textTransform:"uppercase",fontWeight:"bold",marginBottom:"5px"}}>Sauna — Not Today</div>
+                <div style={{fontSize:"11px",color:C.textMuted,lineHeight:1.6}}>{session.saunaNote}</div>
+              </div>
+            )}
+
+            {/* Mark complete button */}
+            <button onClick={markComplete} disabled={isComplete} style={{
+              width:"100%",padding:"14px",marginTop:"10px",marginBottom:"20px",
+              background:isComplete?C.greenBg:C.midnightBlue,
+              border:`1px solid ${isComplete?C.greenBorder:C.midnightBlue}`,
+              borderRadius:"4px",
+              color:isComplete?C.green:"#fff",
+              fontSize:"11px",fontWeight:"bold",letterSpacing:"2px",textTransform:"uppercase",
+            }}>
+              {isComplete ? `✓ LOGGED — ${completedSessions[`${activeDay}_w${week}`]?.date}` : "MARK SESSION COMPLETE"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ══ READINESS VIEW ══ */}
+      {view === "readiness" && (
+        <div style={{padding:"20px 18px"}}>
+          <div style={{fontSize:"9px",letterSpacing:"3px",color:C.textFaint,textTransform:"uppercase",marginBottom:"18px",fontWeight:"bold"}}>Daily Readiness Check</div>
+
+          {todayScore !== null && (()=>{
+            const t = getTier(todayScore);
+            const suggested = todayScore >= 15 ? MODES.full : todayScore >= 10 ? MODES.functional : MODES.maintenance;
+            return (
+              <div style={{background:t.bg,border:`1px solid ${t.color}55`,borderLeft:`4px solid ${t.color}`,borderRadius:"4px",padding:"16px",marginBottom:"22px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                  <div>
+                    <div style={{fontSize:"20px",fontWeight:"bold",color:t.color}}>{t.tier}</div>
+                    <div style={{fontSize:"12px",color:C.textMid,marginTop:"2px"}}>{t.label}</div>
+                  </div>
+                  <div style={{fontSize:"26px",fontWeight:"bold",color:t.color}}>{todayScore}<span style={{fontSize:"12px",color:C.textMuted}}>/70</span></div>
+                </div>
+                <div style={{fontSize:"12px",color:C.textMid,marginTop:"10px",lineHeight:1.6,marginBottom:"12px"}}>{t.note}</div>
+                <div style={{background:suggested.colorBg,border:`1px solid ${suggested.color}55`,borderLeft:`3px solid ${suggested.color}`,borderRadius:"3px",padding:"9px 12px"}}>
+                  <div style={{fontSize:"8px",letterSpacing:"2px",color:suggested.color,textTransform:"uppercase",fontWeight:"bold",marginBottom:"3px"}}>Suggested Mode {suggested.emoji}</div>
+                  <div style={{fontSize:"12px",color:C.textMid,lineHeight:1.4}}>{suggested.label} — {suggested.description}</div>
+                  <button onClick={()=>{setSessionMode(suggested.id);setTimeWindow("full");setView("session");}} style={{
+                    marginTop:"8px",padding:"7px 14px",background:suggested.color,border:"none",
+                    borderRadius:"3px",color:"#fff",fontSize:"9px",fontWeight:"bold",
+                    letterSpacing:"2px",textTransform:"uppercase",
+                  }}>APPLY + GO TO SESSION</button>
+                </div>
+              </div>
+            );
+          })()}
+
+          {[
+            {key:"bodyBattery",       label:"Body Battery (Garmin)",        type:"slider", min:0,  max:100, note:"Divide by 10 → score"},
+            {key:"sleepScore",        label:"Sleep Score (Garmin)",          type:"slider", min:0,  max:100, note:"Divide by 10 → score"},
+            {key:"trainingReadiness", label:"Training Readiness (Garmin)",   type:"slider", min:0,  max:100, note:"Divide by 10 → score"},
+            {key:"hrv",               label:"HRV Status (Garmin)",           type:"select", options:[["favorable","Favorable — 10pts"],["balanced","Balanced — 7pts"],["unbalanced","Unbalanced — 4pts"],["poor","Poor — 1pt"]]},
+            {key:"restingHR",         label:"Resting HR vs 30-Day Avg",      type:"select", options:[["at","At or below — 10pts"],["1-3","1–3 bpm above — 7pts"],["4-6","4–6 bpm above — 4pts"],["7+","7+ bpm above — 1pt"]]},
+            {key:"soreness",          label:"Soreness / Pain (0–10)",        type:"slider", min:0,  max:10,  note:"Score = 10 minus your entry"},
+            {key:"motivation",        label:"Motivation (0–10)",             type:"slider", min:0,  max:10,  note:"Carries directly"},
+          ].map(f=>(
+            <div key={f.key} style={{marginBottom:"18px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:"8px"}}>
+                <div style={{fontSize:"11px",letterSpacing:"1px",color:C.textMid,textTransform:"uppercase",fontWeight:"bold"}}>{f.label}</div>
+                {f.type==="slider" && (
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontSize:"14px",color:phase.color,fontWeight:"bold"}}>{ri[f.key]}</div>
+                  {f.note && <div style={{fontSize:"9px",color:C.textFaint,fontStyle:"italic"}}>{f.note}</div>}
+                </div>
+              )}
+              </div>
+              {f.type==="slider"?(
+                <input type="range" min={f.min} max={f.max} value={ri[f.key]} onChange={e=>setRi(p=>({...p,[f.key]:parseInt(e.target.value)}))}/>
+              ):(
+                <div style={{display:"flex",gap:"5px",flexWrap:"wrap"}}>
+                  {f.options.map(([val,lbl])=>(
+                    <button key={val} onClick={()=>setRi(p=>({...p,[f.key]:val}))} style={{
+                      flex:1,padding:"9px 4px",
+                      background:ri[f.key]===val?phase.color:C.bgCard,
+                      border:`1px solid ${ri[f.key]===val?phase.color:C.border}`,
+                      borderRadius:"3px",color:ri[f.key]===val?"#fff":C.textMuted,
+                      fontSize:"10px",fontWeight:ri[f.key]===val?"bold":"normal",
+                    }}>{lbl}</button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+
+          <button onClick={handleReadiness} style={{
+            width:"100%",padding:"14px",background:phase.color,border:"none",borderRadius:"4px",
+            color:"#fff",fontSize:"11px",fontWeight:"bold",letterSpacing:"2px",textTransform:"uppercase",marginBottom:"24px",
+          }}>CALCULATE READINESS</button>
+
+          {todayScore !== null && (() => {
+            const bb = parseFloat((ri.bodyBattery/10).toFixed(1));
+            const ss = parseFloat((ri.sleepScore/10).toFixed(1));
+            const tr = parseFloat((ri.trainingReadiness/10).toFixed(1));
+            const hv = ({favorable:10,balanced:7,unbalanced:4,poor:1})[ri.hrv]||5;
+            const hr = ({at:10,"1-3":7,"4-6":4,"7+":1})[ri.restingHR]||5;
+            const so = parseFloat((10-ri.soreness).toFixed(1));
+            const mo = parseFloat(ri.motivation.toFixed(1));
+            const inputs = [
+              ["Body Battery",       bb],
+              ["Sleep Score",        ss],
+              ["Training Readiness", tr],
+              ["HRV Status",         hv],
+              ["Resting HR",         hr],
+              ["Soreness",           so],
+              ["Motivation",         mo],
+            ];
+            return (
+              <div style={{background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:"4px",padding:"14px",marginBottom:"24px"}}>
+                <div style={{fontSize:"9px",letterSpacing:"2px",color:C.textFaint,textTransform:"uppercase",fontWeight:"bold",marginBottom:"10px"}}>Score Breakdown</div>
+                {inputs.map(([label, score]) => (
+                  <div key={label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:`1px solid ${C.border}`}}>
+                    <div style={{fontSize:"11px",color:C.textMid}}>{label}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
+                      <div style={{width:"80px",height:"4px",background:C.bgAlt,borderRadius:"2px",overflow:"hidden"}}>
+                        <div style={{width:`${(score/10)*100}%`,height:"100%",background:score>=7?C.green:score>=4?C.gold:C.scarlet,borderRadius:"2px"}}/>
+                      </div>
+                      <div style={{fontSize:"13px",fontWeight:"bold",color:score>=7?C.green:score>=4?C.gold:C.scarlet,minWidth:"28px",textAlign:"right"}}>{score}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
+          {Object.keys(readinessLog).length > 0 && (
+            <div>
+              <div style={{fontSize:"9px",letterSpacing:"3px",color:C.textFaint,textTransform:"uppercase",marginBottom:"12px",fontWeight:"bold"}}>Recent History</div>
+              {Object.entries(readinessLog).slice(-5).reverse().map(([date,entry])=>{
+                const t = getTier(entry.score);
+                return (
+                  <div key={date} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
+                    <div style={{fontSize:"11px",color:C.textMuted}}>{date}</div>
+                    <div style={{display:"flex",gap:"12px",alignItems:"center"}}>
+                      <div style={{fontSize:"9px",color:t.color,letterSpacing:"1px",fontWeight:"bold"}}>{entry.tier}</div>
+                      <div style={{fontSize:"14px",color:t.color,fontWeight:"bold"}}>{entry.score}<span style={{fontSize:"10px",color:C.textFaint}}>/70</span></div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══ TRACKER VIEW ══ */}
+      {view === "tracker" && (
+        <div style={{padding:"20px 18px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"18px"}}>
+            <div style={{fontSize:"9px",letterSpacing:"3px",color:C.textFaint,textTransform:"uppercase",fontWeight:"bold"}}>Progressive Overload — Week {week}</div>
+            <button onClick={()=>exportToExcel(sessionLog,readinessLog,LS.get("block1_bodycomp")||[],week)} style={{
+              background:C.midnightBlue,border:"none",borderRadius:"3px",
+              padding:"8px 14px",color:"#fff",
+              fontSize:"9px",letterSpacing:"1px",textTransform:"uppercase",fontWeight:"bold",
+            }}>⬇ EXPORT CSV</button>
+          </div>
+
+          {/* Completion grid */}
+          <div style={{background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:"4px",padding:"14px",marginBottom:"20px"}}>
+            <div style={{fontSize:"9px",letterSpacing:"2px",color:C.textFaint,textTransform:"uppercase",fontWeight:"bold",marginBottom:"10px"}}>Session Completion</div>
+            <div style={{display:"flex",gap:"6px"}}>
+              {DAY_ORDER.map(d=>{
+                const done = !!completedSessions[`${d}_w${week}`];
+                return (
+                  <div key={d} style={{flex:1,textAlign:"center"}}>
+                    <div style={{
+                      padding:"8px 4px",borderRadius:"3px",
+                      background:done?C.green:C.bgAlt,
+                      border:`1px solid ${done?C.green:C.border}`,
+                      fontSize:"9px",fontWeight:"bold",
+                      color:done?"#fff":C.textFaint,
+                    }}>{done?"✓":d}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {DAY_ORDER.filter(d=>d!=="SUN").map(d=>{
+            const s = SESSIONS[d];
+            return (
+              <div key={d} style={{marginBottom:"22px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"8px",paddingBottom:"6px",borderBottom:`2px solid ${s.color}44`}}>
+                  <div style={{fontSize:"8px",letterSpacing:"3px",color:s.color,textTransform:"uppercase",fontWeight:"bold"}}>{s.fullDay}</div>
+                  <div style={{fontSize:"10px",color:C.textFaint}}>{s.focus}</div>
+                </div>
+                {s.exercises.filter(ex=>typeof ex.sets==="number"&&!ex.noLog).map(ex=>{
+                  const logA = getLogA(ex.id);
+                  const completedA = (logA||[]).filter(s=>s&&s.weight&&s.reps);
+                  const progression = checkProgression(logA, ex.repRange||ex.repRangeA||"");
+                  const { max } = parseRange(ex.repRange||ex.repRangeA||"");
+                  return (
+                    <div key={ex.id} style={{marginBottom:"10px",background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:"3px",padding:"11px 13px"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"5px"}}>
+                        <div style={{fontSize:"13px",fontWeight:"bold",color:C.text,maxWidth:"210px",lineHeight:1.3}}>
+                          {ex.name}{ex.isSuperset&&ex.subName?<span style={{fontSize:"11px",color:C.textFaint,fontWeight:"normal"}}> / {ex.subName}</span>:""}
+                        </div>
+                        {progression&&<span style={{fontSize:"7px",letterSpacing:"1px",background:C.green,color:"#fff",padding:"2px 6px",borderRadius:"2px",fontWeight:"bold",whiteSpace:"nowrap"}}>↑ ADD WEIGHT</span>}
+                      </div>
+                      <div style={{fontSize:"11px",color:C.textMuted,marginBottom:"7px"}}>{ex.sets} × {ex.repRange||ex.repRangeA}</div>
+                      {completedA.length>0?(
+                        <div style={{display:"flex",gap:"4px",flexWrap:"wrap"}}>
+                          {completedA.map((set,si)=>(
+                            <div key={si} style={{
+                              background:parseInt(set.reps)>=max?C.greenBg:C.bgAlt,
+                              border:`1px solid ${parseInt(set.reps)>=max?C.greenBorder:C.border}`,
+                              borderRadius:"2px",padding:"3px 8px",
+                              fontSize:"11px",color:parseInt(set.reps)>=max?C.green:C.textMid,
+                            }}>{set.weight}lb×{set.reps} <span style={{color:C.textFaint}}>@{set.rir}RIR</span></div>
+                          ))}
+                        </div>
+                      ):(
+                        <div style={{fontSize:"11px",color:C.textFaint,fontStyle:"italic"}}>Not logged this week</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ══ BODY COMP VIEW ══ */}
+      {view === "bodycomp" && <BodyCompView phase={phase}/>}
+
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(React.createElement(App));
+</script>
+</body>
+</html>
