@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+  <meta name="theme-color" content="#003087"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Tactical Monster"/>
+  <title>Tactical Monster — Raymond</title>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{background:#00205B;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;-webkit-tap-highlight-color:transparent;}
+    input[type=number],input[type=text]{-webkit-appearance:none;appearance:none;background:#001A4A;border:1.5px solid #003FA0;border-radius:6px;padding:10px 10px;color:#FFFFFF;font-size:15px;width:100%;}
+    input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}
+    input[type=number]::placeholder,input[type=text]::placeholder{color:#6080B0;font-style:italic;}
+    input[type=number]:focus,input[type=text]:focus{outline:none;border-color:#FFC72C;box-shadow:0 0 0 2px rgba(255,199,44,0.2);}
+    textarea{-webkit-appearance:none;background:#001A4A;border:1.5px solid #003FA0;border-radius:6px;padding:10px;color:#FFFFFF;font-size:14px;width:100%;resize:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
+    textarea:focus{outline:none;border-color:#FFC72C;}
+    textarea::placeholder{color:#6080B0;font-style:italic;}
+    button{cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
+    ::-webkit-scrollbar{display:none;}
+    @keyframes flashGold{0%{background:#00205B;}30%{background:#3A5A00;}60%{background:#00205B;}90%{background:#3A5A00;}100%{background:#00205B;}}
+    .flash{animation:flashGold 1.2s ease-in-out 3;}
+  </style>
+  <script>
+  (function(){
+    try{
+      var c=document.createElement('canvas');c.width=c.height=180;
+      var ctx=c.getContext('2d');
+      // BA Navy rounded rect
+      var r=36;ctx.beginPath();ctx.moveTo(r,0);ctx.lineTo(180-r,0);
+      ctx.quadraticCurveTo(180,0,180,r);ctx.lineTo(180,180-r);
+      ctx.quadraticCurveTo(180,180,180-r,180);ctx.lineTo(r,180);
+      ctx.quadraticCurveTo(0,180,0,180-r);ctx.lineTo(0,r);
+      ctx.quadraticCurveTo(0,0,r,0);ctx.closePath();
+      ctx.fillStyle='#003087';ctx.fill();
+      // Gold divider
+      ctx.fillStyle='#FFC72C';ctx.fillRect(18,84,144,8);
+      // T gold top
+      ctx.fillStyle='#FFC72C';ctx.font='bold 90px Georgia,serif';
+      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('T',90,44);
+      // M white bottom
+      ctx.fillStyle='#FFFFFF';ctx.font='bold 74px Georgia,serif';
+      ctx.fillText('M',90,132);
+      var url=c.toDataURL('image/png');
+      var l1=document.createElement('link');l1.rel='apple-touch-icon';l1.href=url;document.head.appendChild(l1);
+      var l2=document.createElement('link');l2.rel='icon';l2.type='image/png';l2.href=url;document.head.appendChild(l2);
+    }catch(e){}
+  })();
+  </script>
+  <script>
+  (function(){
+    var m={name:"Tactical Monster",short_name:"Tactical Monster",start_url:"/",display:"standalone",background_color:"#00205B",theme_color:"#003087",orientation:"portrait"};
+    var b=new Blob([JSON.stringify(m)],{type:'application/json'});
+    var l=document.createElement('link');l.rel='manifest';l.href=URL.createObjectURL(b);document.head.appendChild(l);
+  })();
+  </script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useRef, useEffect } = React;
+
+const LS = {
+  get:(k)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch{return null;}},
+  set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
+};
+
+// ── BLUE ANGELS COLOR PALETTE ─────────────────────────────────────
+const C = {
+  bg:         "#00205B",   // BA deep navy — body background
+  surface:    "#002878",   // slightly lighter navy — cards
+  surfaceMid: "#003087",   // BA official navy — headers
+  surfaceHi:  "#003FA0",   // mid navy — borders, inputs
+  gold:       "#FFC72C",   // BA gold
+  goldLight:  "rgba(255,199,44,0.15)",
+  goldBorder: "rgba(255,199,44,0.4)",
+  white:      "#FFFFFF",
+  offWhite:   "#E8EEF8",
+  textPrimary:"#FFFFFF",
+  textMid:    "#C8D8F0",
+  textMuted:  "#8AAAD0",
+  textFaint:  "#4A6A9A",
+  border:     "rgba(255,255,255,0.12)",
+  borderMid:  "rgba(255,255,255,0.22)",
+  green:      "#2ECC71",
+  greenLight: "rgba(46,204,113,0.15)",
+  greenBorder:"rgba(46,204,113,0.4)",
+  accent:     "#4A9EFF",   // highlight blue for active states
+};
+
+// ── PHASE CONFIG ──────────────────────────────────────────────────
+function getPhaseType(w){const c=((w-1)%4)+1;if(c===1)return"volume";if(c===2)return"strength";if(c===3)return"hypertrophy";return"deload";}
+function getPhase(w){
+  const t=getPhaseType(w);const cn=Math.ceil(w/4);
+  if(t==="volume")    return{name:"VOLUME",     type:"volume",     sets:6,rir:"3–4 RIR",restNote:"60–75 sec",    note:"High set count. Moderate load.",cycleNum:cn};
+  if(t==="strength")  return{name:"STRENGTH",   type:"strength",   sets:5,rir:"1–2 RIR",restNote:"120–180 sec", note:"Heavy 5x5. No pump finisher.",cycleNum:cn};
+  if(t==="hypertrophy")return{name:"HYPERTROPHY",type:"hypertrophy",sets:4,rir:"2–3 RIR",restNote:"45–60 sec",  note:"Time under tension. CBum finishers.",cycleNum:cn};
+  return{name:"DELOAD",type:"deload",sets:2,rir:"3–4 RIR",restNote:"As needed",note:"60% load. Full recovery.",cycleNum:cn};
+}
+
+// ── READINESS ─────────────────────────────────────────────────────
+function scoreReadiness(i){
+  const bb=parseFloat((i.bodyBattery/10).toFixed(1));
+  const ss=parseFloat((i.sleepScore/10).toFixed(1));
+  const tr=parseFloat((i.trainingReadiness/10).toFixed(1));
+  const hrv=({favorable:10,balanced:7,unbalanced:4,poor:1})[i.hrv]||5;
+  const hr=({at:10,"1-3":7,"4-6":4,"7+":1})[i.restingHR]||5;
+  const sor=parseFloat((10-i.soreness).toFixed(1));
+  const mot=parseFloat(i.motivation.toFixed(1));
+  return parseFloat((bb+ss+tr+hrv+hr+sor+mot).toFixed(1));
+}
+function getTier(s){
+  if(s>=56)return{tier:"GREEN", label:"PUSH",        color:C.green,  bg:C.greenLight, note:"Train as programmed. Don't waste a green day."};
+  if(s>=42)return{tier:"YELLOW",label:"MODIFIED",    color:C.gold,   bg:C.goldLight,  note:"Add 1 RIR all sets. No intensity techniques."};
+  if(s>=28)return{tier:"ORANGE",label:"REDUCE",      color:"#FF8C42",bg:"rgba(255,140,66,0.15)",note:"Cut one set. Add 1–2 RIR. Skip conditioning."};
+  return      {tier:"RED",   label:"REST ONLY",   color:"#FF4444",bg:"rgba(255,68,68,0.15)",note:"Zone 2 only. Do not train."};
+}
+
+// ── PROGRESSION ───────────────────────────────────────────────────
+function parseRange(r){const m=r?r.match(/(\d+)[–\-](\d+)/):null;return m?{min:parseInt(m[1]),max:parseInt(m[2])}:{min:0,max:0};}
+function checkProgression(log,repRange){
+  const done=(log||[]).filter(s=>s&&s.reps&&s.weight);
+  if(!done.length)return false;
+  const{max}=parseRange(repRange);
+  return done.every(s=>parseInt(s.reps)>=max)&&parseInt(done[done.length-1].rir||0)>=1;
+}
+
+// ── WARM-UP CALC ──────────────────────────────────────────────────
+function feederCount(f){if(!f)return 0;if(f.includes("3"))return 3;if(f.includes("2"))return 2;if(f.includes("1"))return 1;return 0;}
+function calcWarmup(w,count){
+  const wt=parseFloat(w);if(!wt||isNaN(wt)||wt<=0)return null;
+  const s={3:[{pct:45,reps:"6–10"},{pct:65,reps:"4–6"},{pct:85,reps:"3–4"}],2:[{pct:50,reps:"6–10"},{pct:70,reps:"4–6"}],1:[{pct:60,reps:"6–10"}]};
+  return(s[count]||[]).map(x=>({...x,weight:Math.round(wt*x.pct/100/5)*5}));
+}
+
+// ── PHASE REP RANGES ──────────────────────────────────────────────
+function getPhaseRepRange(ex,phaseType){
+  const isPrimary=ex.tier&&(ex.tier.includes("PRIMARY COMPOUND")||ex.tier.includes("PRIMARY BICEP")||ex.tier.includes("PRIMARY TRICEP")||ex.tier.includes("PRIMARY POSTERIOR"));
+  if(phaseType==="strength"&&isPrimary)return"5";
+  return null;
+}
+
+// ── PHASE SETS ────────────────────────────────────────────────────
+function getPhaseSets(base,phaseType,isArmAccessory){
+  if(phaseType==="deload")return 2;
+  if(phaseType==="volume")return 6;
+  if(phaseType==="strength")return 5;
+  if(phaseType==="hypertrophy")return isArmAccessory?3:4;
+  return base;
+}
+
+// ── REST TIMER PARSE ──────────────────────────────────────────────
+function parseRestSeconds(rest){
+  if(!rest)return 90;
+  if(rest.includes("180")||rest.includes("3 min"))return 180;
+  if(rest.includes("120–180")||rest.includes("2–3"))return 150;
+  if(rest.includes("120"))return 120;
+  if(rest.includes("90"))return 90;
+  if(rest.includes("75"))return 75;
+  if(rest.includes("60–75"))return 67;
+  if(rest.includes("60"))return 60;
+  if(rest.includes("45"))return 45;
+  if(rest.includes("30"))return 30;
+  return 90;
+}
+
+// ── BOMB DROP ─────────────────────────────────────────────────────
+const activeTimers={};
+let globalFlashFn=null;
+function scheduleBombDrop(restSecs){
+  try{
+    const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
+    const ctx=new AC();if(ctx.state==="suspended")ctx.resume();
+    const t=ctx.currentTime;const ws=Math.max(0.1,restSecs-5);const ex=restSecs;
+    const w=ctx.createOscillator();const wg=ctx.createGain();
+    w.connect(wg);wg.connect(ctx.destination);w.type="sine";
+    w.frequency.setValueAtTime(1400,t+ws);w.frequency.exponentialRampToValueAtTime(60,t+ex-0.05);
+    wg.gain.setValueAtTime(0,t+ws);wg.gain.linearRampToValueAtTime(0.45,t+ws+2);wg.gain.linearRampToValueAtTime(0,t+ex);
+    w.start(t+ws);w.stop(t+ex+0.1);
+    const e=ctx.createOscillator();const eg=ctx.createGain();const ef=ctx.createBiquadFilter();
+    e.connect(ef);ef.connect(eg);eg.connect(ctx.destination);e.type="sawtooth";ef.type="lowpass";
+    ef.frequency.setValueAtTime(500,t+ex);ef.frequency.exponentialRampToValueAtTime(30,t+ex+0.7);
+    e.frequency.setValueAtTime(80,t+ex);e.frequency.exponentialRampToValueAtTime(15,t+ex+0.8);
+    eg.gain.setValueAtTime(0,t+ex-0.01);eg.gain.linearRampToValueAtTime(1,t+ex+0.04);eg.gain.exponentialRampToValueAtTime(0.001,t+ex+0.9);
+    e.start(t+ex-0.01);e.stop(t+ex+1);
+    const g=ctx.createOscillator();const gg=ctx.createGain();
+    g.connect(gg);gg.connect(ctx.destination);g.type="sine";
+    g.frequency.setValueAtTime(280,t+ex+0.7);g.frequency.exponentialRampToValueAtTime(1000,t+ex+1.2);
+    gg.gain.setValueAtTime(0,t+ex+0.65);gg.gain.linearRampToValueAtTime(0.6,t+ex+0.75);gg.gain.exponentialRampToValueAtTime(0.001,t+ex+1.4);
+    g.start(t+ex+0.65);g.stop(t+ex+1.5);
+    setTimeout(()=>{try{ctx.close();}catch(e){}}, (restSecs+3)*1000);
+  }catch(err){}
+}
+
+// ── REST TIMER ────────────────────────────────────────────────────
+function RestTimer({seconds}){
+  const[remaining,setRemaining]=useState(seconds);
+  const[done,setDone]=useState(false);
+  const ref=useRef(null);
+  useEffect(()=>{
+    ref.current=setInterval(()=>{
+      setRemaining(r=>{
+        if(r<=1){clearInterval(ref.current);setDone(true);if(navigator.vibrate)navigator.vibrate([400,200,400,200,600]);if(globalFlashFn)globalFlashFn();return 0;}
+        return r-1;
+      });
+    },1000);
+    return()=>clearInterval(ref.current);
+  },[]);
+  const pct=((seconds-remaining)/seconds)*100;
+  const mins=Math.floor(remaining/60);const secs=remaining%60;
+  const countdown=remaining<=5&&remaining>0&&!done;
+  return(
+    <div style={{background:done?C.greenLight:countdown?C.goldLight:"rgba(0,48,135,0.6)",border:`1px solid ${done?C.greenBorder:countdown?C.goldBorder:C.borderMid}`,borderLeft:`3px solid ${done?C.green:countdown?C.gold:C.accent}`,borderRadius:"6px",padding:"12px 14px",marginTop:"10px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}}>
+        <div style={{fontSize:"11px",letterSpacing:"2px",color:done?C.green:countdown?C.gold:C.accent,textTransform:"uppercase",fontWeight:"bold"}}>{done?"✓ REST DONE — GO!":countdown?"💣 INCOMING...":"REST TIMER"}</div>
+        <div style={{fontSize:countdown?"32px":"22px",fontWeight:"bold",color:done?C.green:countdown?"#FF4444":C.white,fontVariantNumeric:"tabular-nums"}}>{done?"💥 GO!":countdown?remaining:`${mins}:${secs.toString().padStart(2,"0")}`}</div>
+      </div>
+      <div style={{background:"rgba(255,255,255,0.1)",borderRadius:"2px",height:"4px",overflow:"hidden"}}>
+        <div style={{background:done?C.green:countdown?"#FF4444":C.accent,height:"100%",width:`${pct}%`,transition:"width 1s linear",borderRadius:"2px"}}/>
+      </div>
+      {done&&<div style={{fontSize:"13px",color:C.green,marginTop:"8px",fontWeight:"bold",textAlign:"center",letterSpacing:"2px"}}>LOAD THE BAR</div>}
+    </div>
+  );
+}
+
+// ── WARMUP CALC COMPONENT ─────────────────────────────────────────
+function WarmupCalc({feeders}){
+  const[w,setW]=useState("");
+  const count=feederCount(feeders);if(!count)return null;
+  const sets=calcWarmup(w,count);
+  return(
+    <div style={{background:"rgba(0,48,135,0.5)",border:`1px solid ${C.goldBorder}`,borderLeft:`3px solid ${C.gold}`,borderRadius:"6px",padding:"14px",marginBottom:"14px"}}>
+      <div style={{fontSize:"11px",letterSpacing:"2px",color:C.gold,textTransform:"uppercase",fontWeight:"bold",marginBottom:"10px"}}>Nippard Warm-Up Sets</div>
+      <input type="number" placeholder="Working weight (lbs)" value={w} onChange={e=>setW(e.target.value)} style={{marginBottom:"10px",textAlign:"left",padding:"10px 12px",fontSize:"15px"}}/>
+      {sets?sets.map((s,i)=>(
+        <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:i<sets.length-1?`1px solid ${C.border}`:"none"}}>
+          <div style={{fontSize:"12px",color:C.textMuted,letterSpacing:"1px",textTransform:"uppercase"}}>Set {i+1} — {s.pct}%</div>
+          <div style={{display:"flex",gap:"16px",alignItems:"center"}}>
+            <div style={{fontSize:"20px",fontWeight:"bold",color:C.white}}>{s.weight}<span style={{fontSize:"12px",fontWeight:"normal",color:C.textMuted}}> lbs</span></div>
+            <div style={{fontSize:"13px",color:C.textMuted}}>{s.reps} reps</div>
+          </div>
+        </div>
+      )):<div style={{fontSize:"13px",color:C.textFaint,fontStyle:"italic"}}>Enter working weight to calculate.</div>}
+    </div>
+  );
+}
+
+// ── SET LOG ROW ───────────────────────────────────────────────────
+function SetLogRow({si,label,repRange,data,onLog,restSecs,exId}){
+  const[tv,setTv]=useState(activeTimers[exId+"_"+si]||0);
+  const{max}=parseRange(repRange);
+  function startTimer(){scheduleBombDrop(restSecs);const v=(activeTimers[exId+"_"+si]||0)+1;activeTimers[exId+"_"+si]=v;setTv(v);}
+  const atMax=data.reps&&parseInt(data.reps)>=max&&max>0;
+  return(
+    <div style={{marginBottom:"10px"}}>
+      <div style={{display:"flex",gap:"6px",alignItems:"center"}}>
+        <div style={{fontSize:"11px",color:C.textMid,width:"50px",fontWeight:"bold"}}>{label}</div>
+        <input type="number" placeholder={max>0?String(max):"lbs"} value={data.weight||""} onChange={e=>onLog(si,"weight",e.target.value)}/>
+        <input type="number" placeholder={max>0?repRange:"reps"} value={data.reps||""} onChange={e=>onLog(si,"reps",e.target.value)} style={{color:atMax?C.green:C.white,borderColor:atMax?C.green:undefined}}/>
+        <input type="number" placeholder="RIR" value={data.rir||""} onChange={e=>onLog(si,"rir",e.target.value)} style={{flex:0.7,color:data.rir!==undefined&&parseInt(data.rir)<=1?C.gold:C.white}}/>
+        {data.weight&&data.reps&&(
+          <button onClick={startTimer} style={{background:tv>0?"transparent":C.gold,border:`1px solid ${C.gold}`,borderRadius:"6px",padding:"8px 10px",color:tv>0?C.gold:C.bg,fontSize:"10px",fontWeight:"bold",letterSpacing:"1px",whiteSpace:"nowrap"}}>▶ REST</button>
+        )}
+      </div>
+      {tv>0&&<RestTimer key={tv} seconds={restSecs}/>}
+    </div>
+  );
+}
+
+// ── BAND TRACKER ──────────────────────────────────────────────────
+const BANDS=["Light","Medium","Heavy","Extra Heavy","Mini Band"];
+function BandTracker({sessionKey,bandLog,onBandLog}){
+  const current=bandLog[sessionKey]||"";
+  return(
+    <div style={{background:"rgba(0,48,135,0.4)",border:`1px solid ${C.border}`,borderRadius:"8px",padding:"14px",marginBottom:"14px"}}>
+      <div style={{fontSize:"12px",letterSpacing:"2px",color:C.gold,textTransform:"uppercase",fontWeight:"bold",marginBottom:"10px"}}>Band Used Today</div>
+      <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+        {BANDS.map(b=>(
+          <button key={b} onClick={()=>onBandLog(sessionKey,current===b?"":b)}
+            style={{padding:"8px 12px",background:current===b?C.gold:"transparent",border:`1.5px solid ${current===b?C.gold:C.borderMid}`,borderRadius:"6px",color:current===b?C.bg:C.textMid,fontSize:"12px",fontWeight:current===b?"bold":"normal"}}>
+            {b}
+          </button>
+        ))}
+      </div>
+      {current&&<div style={{fontSize:"12px",color:C.gold,marginTop:"8px",fontWeight:"bold"}}>✓ {current} band logged</div>}
+    </div>
+  );
+}
+
+// ── EXERCISE ROW ──────────────────────────────────────────────────
+function ExerciseRow({ex,week,phaseType,logA,logB,onLogA,onLogB,bandLog,onBandLog}){
+  const[expanded,setExpanded]=useState(false);
+  const[logging,setLogging]=useState(false);
+  const[usingAlt,setUsingAlt]=useState(false);
+  const isOddWeek=week%2!==0;
+  const displayName=ex.weekAware?(isOddWeek?ex.oddName:ex.evenName):ex.name;
+  const weekLabel=ex.weekAware?(isOddWeek?"ODD WEEK":"EVEN WEEK"):null;
+  const originalSets=typeof ex.sets==="number"?ex.sets:4;
+  const phaseSets=getPhaseSets(originalSets,phaseType,ex.armAccessory);
+  const restSecs=phaseType==="strength"&&ex.tier&&ex.tier.includes("PRIMARY")?150:parseRestSeconds(ex.rest);
+  const phaseRepRange=getPhaseRepRange(ex,phaseType);
+  const completedA=(logA||[]).filter(s=>s&&s.weight&&s.reps);
+  const progressionA=checkProgression(logA,phaseRepRange||ex.repRange||ex.repRangeA||"");
+  const hasFeeders=feederCount(ex.feeders)>0;
+  const isBandEx=ex.tier&&(ex.tier.includes("BAND")||ex.name.toLowerCase().includes("pull-apart")||ex.name.toLowerCase().includes("face pull")||ex.name.toLowerCase().includes("dislocate"));
+  const sessionBandKey=`band_${ex.id}`;
+
+  return(
+    <div style={{borderBottom:`1px solid ${C.border}`}}>
+      <div onClick={()=>{setExpanded(!expanded);setLogging(false);}} style={{padding:"16px 0",cursor:"pointer",display:"flex",gap:"12px",alignItems:"flex-start"}}>
+        <div style={{fontSize:"12px",color:C.gold,fontWeight:"bold",minWidth:"28px",paddingTop:"2px"}}>{ex.number}</div>
+        <div style={{flex:1}}>
+          <div style={{fontSize:"11px",letterSpacing:"1.5px",color:C.textMuted,textTransform:"uppercase",fontWeight:"bold",marginBottom:"5px"}}>{ex.tier}</div>
+          <div style={{display:"flex",alignItems:"center",gap:"8px",flexWrap:"wrap",marginBottom:"6px"}}>
+            <div style={{fontSize:"17px",fontWeight:"bold",color:C.white,lineHeight:1.2}}>
+              {displayName}{ex.isSuperset&&ex.subName?<span style={{color:C.textMuted,fontWeight:"normal",fontSize:"14px"}}> / {ex.subName}</span>:""}
+            </div>
+            {weekLabel&&<span style={{fontSize:"10px",letterSpacing:"1px",color:C.bg,background:C.gold,padding:"2px 8px",borderRadius:"3px",fontWeight:"bold",textTransform:"uppercase"}}>{weekLabel}</span>}
+            {progressionA&&<span style={{fontSize:"10px",letterSpacing:"1px",color:C.bg,background:C.green,padding:"2px 8px",borderRadius:"3px",fontWeight:"bold",textTransform:"uppercase"}}>↑ ADD WEIGHT</span>}
+          </div>
+          <div style={{fontSize:"13px",color:C.textMid,fontWeight:"500"}}>
+            {phaseRepRange?<span style={{color:C.gold,fontWeight:"bold"}}>{phaseRepRange} reps (5×5)</span>:(ex.isSuperset?`${ex.repRangeA||ex.repRange} / ${ex.repRangeB||""}`:ex.repRange)} · <span style={{color:C.white,fontWeight:"bold"}}>{phaseSets} sets</span> · {phaseType==="strength"&&ex.tier&&ex.tier.includes("PRIMARY")?"120–180 sec":ex.rest}
+          </div>
+          {completedA.length>0&&(
+            <div style={{marginTop:"7px",display:"flex",gap:"5px",flexWrap:"wrap"}}>
+              {completedA.map((s,si)=>(
+                <span key={si} style={{fontSize:"11px",color:C.green,background:C.greenLight,border:`1px solid ${C.greenBorder}`,borderRadius:"3px",padding:"2px 8px",fontWeight:"bold"}}>{s.weight}lb×{s.reps}</span>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{fontSize:"20px",color:C.gold,transition:"transform 0.15s",transform:expanded?"rotate(45deg)":"none",paddingTop:"2px"}}>+</div>
+      </div>
+
+      {expanded&&(
+        <div style={{paddingBottom:"18px",paddingLeft:"40px"}} onClick={e=>e.stopPropagation()}>
+          {hasFeeders&&<WarmupCalc feeders={ex.feeders}/>}
+          {isBandEx&&<BandTracker sessionKey={sessionBandKey} bandLog={bandLog} onBandLog={onBandLog}/>}
+          <div style={{fontSize:"14px",color:C.textMid,lineHeight:1.8,marginBottom:"12px"}}>{ex.notes}</div>
+          {ex.spineFlag&&(
+            <div style={{background:"rgba(255,68,68,0.12)",border:"1px solid rgba(255,68,68,0.35)",borderLeft:"3px solid #FF4444",borderRadius:"6px",padding:"10px 14px",marginBottom:"12px"}}>
+              <div style={{fontSize:"11px",letterSpacing:"2px",color:"#FF4444",textTransform:"uppercase",fontWeight:"bold",marginBottom:"4px"}}>⚠ SPINE FLAG</div>
+              <div style={{fontSize:"13px",color:"#FFAAAA",lineHeight:1.5}}>{ex.spineFlag}</div>
+            </div>
+          )}
+          {!ex.noLog&&typeof ex.sets==="number"&&(
+            <>
+              {ex.alt&&(
+                <button onClick={()=>setUsingAlt(!usingAlt)} style={{background:usingAlt?C.gold+"33":"transparent",border:`1.5px solid ${usingAlt?C.gold:C.borderMid}`,borderRadius:"6px",padding:"8px 16px",marginRight:"8px",marginBottom:"10px",color:usingAlt?C.gold:C.textMuted,fontSize:"11px",letterSpacing:"1px",textTransform:"uppercase",fontWeight:"bold"}}>
+                  {usingAlt?"✓ USING ALT":"SWITCH TO ALT"}
+                </button>
+              )}
+              <button onClick={()=>setLogging(!logging)} style={{background:logging?C.gold:"transparent",border:`1.5px solid ${logging?C.gold:C.borderMid}`,borderRadius:"6px",padding:"10px 20px",color:logging?C.bg:C.textMid,fontSize:"11px",letterSpacing:"2px",textTransform:"uppercase",fontWeight:"bold",marginBottom:logging?"16px":"0"}}>
+                {logging?"CLOSE LOG":"LOG SETS"}
+              </button>
+              {logging&&(
+                <div style={{marginTop:"14px"}}>
+                  <div style={{display:"flex",gap:"6px",marginBottom:"10px"}}>
+                    <div style={{width:"50px"}}/>
+                    {["LBS","REPS","RIR"].map(h=><div key={h} style={{flex:h==="RIR"?0.7:1,fontSize:"11px",color:C.textMid,textAlign:"center",letterSpacing:"1px",textTransform:"uppercase",fontWeight:"bold"}}>{h}</div>)}
+                    <div style={{width:"68px"}}/>
+                  </div>
+                  {ex.isSuperset&&<div style={{fontSize:"11px",letterSpacing:"2px",color:C.gold,textTransform:"uppercase",fontWeight:"bold",marginBottom:"8px"}}>A — {usingAlt&&ex.alt?ex.alt.split("/")[0].trim():ex.name}</div>}
+                  {[...Array(phaseSets)].map((_,si)=>(
+                    <SetLogRow key={"a"+si} si={si} label={"Set "+(si+1)} repRange={phaseRepRange||ex.repRangeA||ex.repRange||""} data={(logA||[])[si]||{}} onLog={onLogA} restSecs={restSecs} exId={ex.id+"_a"}/>
+                  ))}
+                  {ex.isSuperset&&ex.subName&&!ex.noLogB&&(
+                    <>
+                      <div style={{height:"1px",background:C.border,margin:"14px 0"}}/>
+                      <div style={{fontSize:"11px",letterSpacing:"2px",color:C.gold,textTransform:"uppercase",fontWeight:"bold",marginBottom:"8px"}}>B — {ex.subName}</div>
+                      {[...Array(phaseSets)].map((_,si)=>(
+                        <SetLogRow key={"b"+si} si={si} label={"Set "+(si+1)} repRange={ex.repRangeB||ex.repRange||""} data={(logB||[])[si]||{}} onLog={onLogB} restSecs={restSecs} exId={ex.id+"_b"}/>
+                      ))}
+                    </>
+                  )}
+                  {progressionA&&(
+                    <div style={{background:C.greenLight,border:`1px solid ${C.greenBorder}`,borderLeft:`3px solid ${C.green}`,borderRadius:"6px",padding:"10px 14px",marginTop:"12px"}}>
+                      <div style={{fontSize:"11px",letterSpacing:"2px",color:C.green,textTransform:"uppercase",fontWeight:"bold",marginBottom:"4px"}}>Double Progression</div>
+                      <div style={{fontSize:"13px",color:"#90D4A8",lineHeight:1.4}}>All sets at top of range with RIR ≥ 1. Add weight next session.</div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── EXPAND CARD ───────────────────────────────────────────────────
+function ExpandCard({label,sublabel,influence,children}){
+  const[open,setOpen]=useState(false);
+  return(
+    <div style={{marginBottom:"10px"}}>
+      <div onClick={()=>setOpen(!open)} style={{background:open?"rgba(0,48,135,0.7)":C.surface,border:`1.5px solid ${open?C.goldBorder:C.borderMid}`,borderRadius:"8px",padding:"16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div>
+          <div style={{fontSize:"11px",letterSpacing:"2px",color:C.gold,textTransform:"uppercase",fontWeight:"bold",marginBottom:"3px"}}>{label}</div>
+          <div style={{fontSize:"16px",fontWeight:"bold",color:C.white}}>{sublabel}</div>
+          {influence&&<div style={{fontSize:"11px",color:C.textMuted,marginTop:"2px",fontStyle:"italic"}}>{influence}</div>}
+        </div>
+        <div style={{fontSize:"22px",color:C.gold,transition:"transform 0.15s",transform:open?"rotate(45deg)":"none",flexShrink:0,marginLeft:"12px"}}>+</div>
+      </div>
+      {open&&(
+        <div style={{background:C.surface,border:`1.5px solid ${C.borderMid}`,borderTop:"none",borderRadius:"0 0 8px 8px",padding:"16px"}}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── CONDITIONING TRACKER ──────────────────────────────────────────
+function ConditioningTracker({sessionKey,condLog,onCondLog,options,phaseType}){
+  const entry=condLog[sessionKey]||{selected:"",note:""};
+  const fullBlock=phaseType==="strength";
+  function update(field,val){
+    const updated={...entry,[field]:val};
+    onCondLog(sessionKey,updated);
+  }
+  return(
+    <div style={{marginTop:"8px"}}>
+      <div style={{fontSize:"12px",letterSpacing:"1px",color:C.gold,textTransform:"uppercase",fontWeight:"bold",marginBottom:"6px"}}>
+        {fullBlock?"10 MIN — Full Block (Strength Week)":"5 MIN"}
+      </div>
+      {options.map((opt,i)=>{
+        const isSelected=entry.selected===opt.name;
+        return(
+          <div key={i} style={{marginBottom:"10px",background:isSelected?"rgba(0,48,135,0.6)":"rgba(0,32,91,0.4)",border:`1.5px solid ${isSelected?C.gold:C.border}`,borderRadius:"8px",padding:"12px 14px",cursor:"pointer"}}
+            onClick={()=>update("selected",isSelected?"":opt.name)}>
+            <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:isSelected?"8px":"0"}}>
+              <div style={{width:"20px",height:"20px",borderRadius:"50%",border:`2px solid ${isSelected?C.gold:C.borderMid}`,background:isSelected?C.gold:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                {isSelected&&<div style={{fontSize:"11px",color:C.bg,fontWeight:"bold"}}>✓</div>}
+              </div>
+              <div>
+                <div style={{fontSize:"14px",fontWeight:"bold",color:C.white}}>{opt.name}</div>
+                <div style={{fontSize:"12px",color:C.textMuted,marginTop:"2px"}}>{opt.protocol}</div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      {entry.selected&&(
+        <div style={{marginTop:"8px"}}>
+          <div style={{fontSize:"12px",color:C.textMid,letterSpacing:"1px",textTransform:"uppercase",fontWeight:"bold",marginBottom:"6px"}}>Notes — time / distance / rounds</div>
+          <textarea rows={2} placeholder="e.g. 4 rounds, 8 min total, 155 HR avg..." value={entry.note||""} onChange={e=>update("note",e.target.value)}/>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── CARDIO LOG (replaces Sunday session) ──────────────────────────
+const CARDIO_TYPES=["Pool Swim","Ruck","Assault Bike","Row","Run","Zone 2 Bike","MTNTOUGH Circuit","Other"];
+function CardioLogView({cardioLog,onCardioLog}){
+  const[form,setForm]=useState({date:new Date().toLocaleDateString(),type:"",duration:"",avgHR:"",maxHR:"",calories:"",distance:"",trainingEffect:"",notes:""});
+  const[saved,setSaved]=useState(false);
+  function update(k,v){setForm(f=>({...f,[k]:v}));setSaved(false);}
+  function save(){
+    if(!form.type||!form.duration){return;}
+    const entry={...form,timestamp:Date.now()};
+    const newLog=[...cardioLog,entry];onCardioLog(newLog);setSaved(true);
+    setForm({date:new Date().toLocaleDateString(),type:"",duration:"",avgHR:"",maxHR:"",calories:"",distance:"",trainingEffect:"",notes:""});
+  }
+  const recent=[...cardioLog].reverse().slice(0,10);
+  return(
+    <div>
+      <div style={{fontSize:"13px",color:C.textMid,lineHeight:1.6,marginBottom:"20px"}}>Log any cardio session — gym days, Sundays, or whenever it happens. Pull your Garmin metrics and record them here for a full picture.</div>
+
+      {/* Type selector */}
+      <div style={{marginBottom:"16px"}}>
+        <div style={{fontSize:"12px",letterSpacing:"2px",color:C.gold,textTransform:"uppercase",fontWeight:"bold",marginBottom:"10px"}}>Cardio Type</div>
+        <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+          {CARDIO_TYPES.map(t=>(
+            <button key={t} onClick={()=>update("type",form.type===t?"":t)}
+              style={{padding:"8px 12px",background:form.type===t?C.gold:"transparent",border:`1.5px solid ${form.type===t?C.gold:C.borderMid}`,borderRadius:"6px",color:form.type===t?C.bg:C.textMid,fontSize:"12px",fontWeight:form.type===t?"bold":"normal"}}>
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Garmin metrics */}
+      <div style={{fontSize:"12px",letterSpacing:"2px",color:C.gold,textTransform:"uppercase",fontWeight:"bold",marginBottom:"10px"}}>Garmin Metrics</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px",marginBottom:"12px"}}>
+        {[["Duration (min)","duration","45"],["Avg HR (bpm)","avgHR","132"],["Max HR (bpm)","maxHR","158"],["Calories","calories","420"],["Distance (mi)","distance","2.1"],["Training Effect","trainingEffect","2.8 Aerobic"]].map(([lbl,key,ph])=>(
+          <div key={key}>
+            <div style={{fontSize:"11px",color:C.textMuted,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"5px",fontWeight:"bold"}}>{lbl}</div>
+            <input type="text" placeholder={ph} value={form[key]} onChange={e=>update(key,e.target.value)}/>
+          </div>
+        ))}
+      </div>
+
+      {/* Notes */}
+      <div style={{marginBottom:"16px"}}>
+        <div style={{fontSize:"12px",color:C.textMuted,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"6px",fontWeight:"bold"}}>Notes</div>
+        <textarea rows={2} placeholder="Felt strong, pool was crowded, hit Zone 2 the whole time..." value={form.notes} onChange={e=>update("notes",e.target.value)}/>
+      </div>
+
+      <button onClick={save} disabled={!form.type||!form.duration}
+        style={{width:"100%",padding:"16px",background:form.type&&form.duration?C.gold:"rgba(255,199,44,0.3)",border:"none",borderRadius:"8px",color:form.type&&form.duration?C.bg:"rgba(255,255,255,0.3)",fontSize:"13px",fontWeight:"bold",letterSpacing:"2px",textTransform:"uppercase",marginBottom:"24px"}}>
+        LOG SESSION
+      </button>
+      {saved&&<div style={{background:C.greenLight,border:`1px solid ${C.greenBorder}`,borderRadius:"6px",padding:"10px 14px",marginBottom:"16px",fontSize:"13px",color:C.green,fontWeight:"bold"}}>✓ Session logged</div>}
+
+      {/* History */}
+      {recent.length>0&&(
+        <div>
+          <div style={{fontSize:"12px",letterSpacing:"2px",color:C.gold,textTransform:"uppercase",fontWeight:"bold",marginBottom:"12px"}}>Recent Cardio</div>
+          {recent.map((e,i)=>(
+            <div key={i} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"14px",marginBottom:"10px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"8px"}}>
+                <div style={{fontSize:"15px",fontWeight:"bold",color:C.white}}>{e.type}</div>
+                <div style={{fontSize:"11px",color:C.textMuted}}>{e.date}</div>
+              </div>
+              <div style={{display:"flex",gap:"14px",flexWrap:"wrap"}}>
+                {e.duration&&<div style={{fontSize:"12px",color:C.textMid}}><span style={{color:C.gold,fontWeight:"bold"}}>{e.duration}</span> min</div>}
+                {e.avgHR&&<div style={{fontSize:"12px",color:C.textMid}}>Avg <span style={{color:C.gold,fontWeight:"bold"}}>{e.avgHR}</span> bpm</div>}
+                {e.maxHR&&<div style={{fontSize:"12px",color:C.textMid}}>Max <span style={{color:C.gold,fontWeight:"bold"}}>{e.maxHR}</span> bpm</div>}
+                {e.calories&&<div style={{fontSize:"12px",color:C.textMid}}><span style={{color:C.gold,fontWeight:"bold"}}>{e.calories}</span> cal</div>}
+                {e.distance&&<div style={{fontSize:"12px",color:C.textMid}}><span style={{color:C.gold,fontWeight:"bold"}}>{e.distance}</span> mi</div>}
+                {e.trainingEffect&&<div style={{fontSize:"12px",color:C.textMid}}>TE <span style={{color:C.gold,fontWeight:"bold"}}>{e.trainingEffect}</span></div>}
+              </div>
+              {e.notes&&<div style={{fontSize:"12px",color:C.textMuted,marginTop:"6px",fontStyle:"italic"}}>{e.notes}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── BODY COMP VIEW ────────────────────────────────────────────────
+function BodyCompView(){
+  const[log,setLog]=useState(()=>LS.get("tm_bodycomp")||[]);
+  const[wt,setWt]=useState("");const[bf,setBf]=useState("");
+  const[neck,setNeck]=useState("");const[waist,setWaist]=useState("");const[height,setHeight]=useState("");const[navyBF,setNavyBF]=useState("");
+  function calcNavyBF(){
+    const n=parseFloat(neck),w=parseFloat(waist),h=parseFloat(height);
+    if(!n||!w||!h||w<=n)return;
+    const r=(86.010*Math.log10(w-n)-70.041*Math.log10(h)+36.76).toFixed(1);
+    setNavyBF(r);setBf(r);
+  }
+  function addEntry(){
+    if(!wt)return;
+    const entry={date:new Date().toLocaleDateString(),weight:parseFloat(wt),bf:bf?parseFloat(bf):null};
+    const nl=[...log,entry];setLog(nl);LS.set("tm_bodycomp",nl);
+    setWt("");setBf("");
+  }
+  const recent=[...log].slice(-10);
+  const minW=recent.length?Math.min(...recent.map(e=>e.weight))-5:180;
+  const maxW=recent.length?Math.max(...recent.map(e=>e.weight))+5:230;
+  const rowStyle={background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"16px",marginBottom:"14px"};
+  const labelStyle={fontSize:"12px",letterSpacing:"2px",color:C.gold,textTransform:"uppercase",fontWeight:"bold",marginBottom:"10px"};
+  return(
+    <div style={{padding:"20px 18px"}}>
+      <div style={labelStyle}>Navy BF% Calculator</div>
+      <div style={rowStyle}>
+        <div style={{fontSize:"12px",color:C.textMid,marginBottom:"14px"}}>Neck · Waist · Height in inches → auto-populates BF%</div>
+        <div style={{display:"flex",gap:"8px",marginBottom:"12px"}}>
+          {[["Neck",neck,setNeck,"15.5"],["Waist",waist,setWaist,"34.0"],["Height",height,setHeight,"71"]].map(([lbl,val,set,ph])=>(
+            <div key={lbl} style={{flex:1}}>
+              <div style={{fontSize:"11px",color:C.textMuted,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"5px",fontWeight:"bold"}}>{lbl} (in)</div>
+              <input type="number" placeholder={ph} value={val} onChange={e=>set(e.target.value)}/>
+            </div>
+          ))}
+        </div>
+        <button onClick={calcNavyBF} style={{width:"100%",padding:"12px",background:C.gold,border:"none",borderRadius:"6px",color:C.bg,fontSize:"12px",fontWeight:"bold",letterSpacing:"2px",textTransform:"uppercase"}}>CALCULATE</button>
+        {navyBF&&<div style={{marginTop:"12px",background:C.goldLight,border:`1px solid ${C.goldBorder}`,borderLeft:`3px solid ${C.gold}`,borderRadius:"6px",padding:"12px 14px"}}>
+          <div style={{fontSize:"11px",letterSpacing:"2px",color:C.gold,textTransform:"uppercase",fontWeight:"bold",marginBottom:"3px"}}>Navy Method Result</div>
+          <div style={{fontSize:"26px",fontWeight:"bold",color:C.white}}>{navyBF}% <span style={{fontSize:"13px",color:C.textMuted,fontWeight:"normal"}}>body fat — auto-populated</span></div>
+        </div>}
+      </div>
+      <div style={labelStyle}>Log Today</div>
+      <div style={rowStyle}>
+        <div style={{display:"flex",gap:"8px",marginBottom:"12px"}}>
+          <div style={{flex:1}}><div style={{fontSize:"11px",color:C.textMuted,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"5px",fontWeight:"bold"}}>Weight (lbs)</div><input type="number" placeholder="217" value={wt} onChange={e=>setWt(e.target.value)}/></div>
+          <div style={{flex:1}}><div style={{fontSize:"11px",color:C.textMuted,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"5px",fontWeight:"bold"}}>Body Fat %</div><input type="number" placeholder="23.5" value={bf} onChange={e=>setBf(e.target.value)} style={{borderColor:navyBF&&bf===navyBF?C.gold:undefined}}/></div>
+        </div>
+        <button onClick={addEntry} style={{width:"100%",padding:"14px",background:C.gold,border:"none",borderRadius:"6px",color:C.bg,fontSize:"12px",fontWeight:"bold",letterSpacing:"2px",textTransform:"uppercase"}}>LOG ENTRY</button>
+      </div>
+      {recent.length>=2&&(()=>{
+        const W=320,H=120,PAD=20,cW=W-PAD*2,cH=H-PAD*2;
+        return(<div style={rowStyle}>
+          <div style={labelStyle}>Weight Trend</div>
+          <svg width={W} height={H}>
+            {recent.map((e,i)=>{const x=PAD+(i/(recent.length-1))*cW;const y=PAD+cH-((e.weight-minW)/(maxW-minW))*cH;return<circle key={i} cx={x} cy={y} r={4} fill={C.gold}/>;} )}
+            {recent.slice(1).map((e,i)=>{const x1=PAD+(i/(recent.length-1))*cW;const y1=PAD+cH-((recent[i].weight-minW)/(maxW-minW))*cH;const x2=PAD+((i+1)/(recent.length-1))*cW;const y2=PAD+cH-((e.weight-minW)/(maxW-minW))*cH;return<line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={C.gold} strokeWidth={2} opacity={0.7}/>;})}
+          </svg>
+        </div>);
+      })()}
+      {log.length>0&&<div style={rowStyle}>
+        <div style={labelStyle}>History</div>
+        {[...log].reverse().slice(0,10).map((e,i)=>(
+          <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
+            <div style={{fontSize:"13px",color:C.textMid,fontWeight:"500"}}>{e.date}</div>
+            <div style={{display:"flex",gap:"16px"}}>
+              <div style={{fontSize:"15px",fontWeight:"bold",color:C.white}}>{e.weight}<span style={{fontSize:"11px",color:C.textFaint}}> lbs</span></div>
+              {e.bf&&<div style={{fontSize:"15px",fontWeight:"bold",color:C.gold}}>{e.bf}<span style={{fontSize:"11px",color:C.textFaint}}>%</span></div>}
+            </div>
+          </div>
+        ))}
+      </div>}
+    </div>
+  );
+}
+
+// ── CSV EXPORT ────────────────────────────────────────────────────
+function exportCSV(sessionLog,readinessLog,bodyCompLog,condLog,cardioLog,week){
+  const rows=[["RAYMOND — TACTICAL MONSTER PROTOCOL"],["Exported:",new Date().toLocaleDateString()],["Week:",week],[]];
+  rows.push(["SESSION LOG"]);rows.push(["Exercise","Week","Set","Weight","Reps","RIR"]);
+  ["MON","TUE","WED","THU","FRI"].forEach(day=>{
+    const s=SESSIONS[day];if(!s)return;
+    (s.exercises||[]).forEach(ex=>{
+      if(ex.noLog||typeof ex.sets!=="number")return;
+      ["a","b"].forEach(ab=>{
+        const key=ex.id+"_w"+week+"_"+ab;
+        (sessionLog[key]||[]).forEach((s,i)=>{if(s&&s.weight)rows.push([ex.name,week,i+1,s.weight,s.reps||"",s.rir||""]);});
+      });
+    });
+  });
+  rows.push([]);rows.push(["CONDITIONING LOG"]);rows.push(["Session","Selected","Notes"]);
+  Object.entries(condLog).forEach(([k,v])=>{if(v.selected)rows.push([k,v.selected,v.note||""]);});
+  rows.push([]);rows.push(["CARDIO LOG"]);rows.push(["Date","Type","Duration","Avg HR","Max HR","Calories","Distance","TE","Notes"]);
+  (cardioLog||[]).forEach(e=>rows.push([e.date,e.type,e.duration,e.avgHR,e.maxHR,e.calories,e.distance,e.trainingEffect,e.notes]));
+  rows.push([]);rows.push(["READINESS"]);rows.push(["Date","Score","Tier"]);
+  Object.entries(readinessLog).forEach(([d,e])=>rows.push([d,e.score,e.tier]));
+  rows.push([]);rows.push(["BODY COMP"]);rows.push(["Date","Weight","BF%"]);
+  (bodyCompLog||[]).forEach(e=>rows.push([e.date,e.weight,e.bf||""]));
+  const csv=rows.map(r=>r.map(cell=>`"${String(cell||"").replace(/"/g,'""')}"`).join(",")).join("\n");
+  const blob=new Blob([csv],{type:"text/csv"});const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");a.href=url;a.download=`raymond_tm_w${week}_${new Date().toISOString().split("T")[0]}.csv`;a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── SESSIONS DATA ─────────────────────────────────────────────────
+const SESSIONS = {
+  MON:{
+    day:"MON",fullDay:"MONDAY",focus:"CHEST",subtitle:"Primary Push Day",
+    warmup:[
+      {item:"Face Pull",equipment:"CABLE",notes:"Light cable, high pulley attachment. 2 × 20. Full external rotation at peak. MANDATORY every session."},
+      {item:"Band Pull-Apart",equipment:"BAND",notes:"Light or medium resistance band. 2 × 20. Arms straight, pull apart to shoulder level. MANDATORY every session."},
+      {item:"Shoulder CARs",equipment:"BODYWEIGHT",notes:"10 forward, 10 backward. Full range of motion. Slow and controlled."},
+      {item:"Incline Feeder Sets",equipment:"BARBELL",notes:"Nippard protocol to working weight. Calculator below."},
+    ],
+    exercises:[
+      {id:"mon_01",number:"01",tier:"PRIMARY COMPOUND",name:"Barbell Incline Bench Press",preferred:true,alt:"Flat Barbell Bench Press (swap primary on even weeks)",feeders:"3 Sets",sets:6,repRange:"8–12",rest:"75 sec",notes:"ODD WEEKS: Barbell Incline — upper chest priority, touch upper chest, 2–3 sec eccentric, back pinned to pad. EVEN WEEKS: Flat Barbell Bench — overall mass, bar to mid-chest, drive through center. Feeder sets to working weight before first working set.",spineFlag:null,weekAware:true,oddName:"Barbell Incline Press",evenName:"Flat Barbell Bench Press"},
+      {id:"mon_02",number:"02",tier:"SECONDARY COMPOUND",name:"Flat DB Flyes + Flat DB Bench",preferred:false,alt:null,feeders:"2 Sets",sets:6,repRange:"10–12",rest:"60 sec",notes:"SUPERSET: Flyes first for deep pec stretch — full ROM at bottom. Press immediately after for mechanical tension. CBum antagonist pairing. ODD WEEKS secondary: Hammer Strength Flat Press. EVEN WEEKS: Incline DB Press.",spineFlag:null,isSuperset:true,repRangeA:"10–12",repRangeB:"10–12",subName:"DB Press"},
+      {id:"mon_03",number:"03",tier:"ISOLATION",name:"Landmine Press (2-Hand, Kneeling)",preferred:false,alt:"Seated Cable Chest Press — neutral grip",feeders:"1 Set",sets:6,repRange:"10–12",rest:"60 sec",notes:"Lower chest emphasis. Arc the press, squeeze at top. Kneeling removes all axial spinal load. No standing landmine press.",spineFlag:null},
+      {id:"mon_04",number:"04",tier:"ISOLATION",name:"Cable Crossover (High-to-Low) + Dead Bug",preferred:false,alt:"Pec Deck — stop short of full adduction",feeders:null,sets:6,repRange:"12–15",rest:"60 sec",notes:"SUPERSET with core: Full stretch at bottom, squeeze at top. Rotate immediately into Dead Bug or Pallof Press during rest period — CBum style core integration. T9-T11: stop before full adduction on Pec Deck alternative.",spineFlag:"T9-T11: Never fully lock out to center on pec deck. Stop just short of full adduction.",isSuperset:true,repRangeA:"12–15",repRangeB:"8–10 per side",subName:"Dead Bug / Pallof Press",noLogB:true},
+    ],
+    finisher:{name:"Rope Pushdown — FST-7 Tricep Finisher",duration:"FST-7",protocol:"7 sets × 12–15 reps, 30 sec rest between sets. Spread the rope fully at the bottom — hold the stretch position 1 second every rep. This is the FST-7 fascial stretch position for the tricep. Strength week: SKIP — run full 10-min conditioning instead.",influence:"Hany Rambod — FST-7"},
+    conditioning:{options:[{name:"Sled Push Intervals",protocol:"4 × 20m pushes, moderate load. 45 sec walk recovery. No running with sled."},{name:"Jump Rope Tabata",protocol:"20 sec on / 10 sec off × 10 rounds = 5 min. Strength week: extend to 10 full minutes."}]},
+    cooldown:"Light chest and shoulder stretch 60 sec per side. Band pull-aparts × 20.",
+  },
+  TUE:{
+    day:"TUE",fullDay:"TUESDAY",focus:"BACK",subtitle:"Primary Pull Day",
+    warmup:[
+      {item:"Face Pull — WORKING SETS",equipment:"CABLE",notes:"Cable, high pulley. 2 × 20 primer + 3 × 15–20 working sets. Back day is the ONLY day face pulls count as working sets. External rotation, elbows high. MANDATORY."},
+      {item:"Band Pull-Apart",equipment:"BAND",notes:"Light or medium band. 2 × 20. MANDATORY."},
+      {item:"Cat-Cow / Thoracic Extension",equipment:"BODYWEIGHT",notes:"10 slow reps each direction. Wake up T-spine before any rowing. Critical."},
+      {item:"Scapular Wall Slides",equipment:"BODYWEIGHT",notes:"2 × 10. Arms against wall, slide up and down maintaining contact. Scapular control prep."},
+    ],
+    exercises:[
+      {id:"tue_01",number:"01",tier:"PRIMARY COMPOUND",name:"Bodyweight Pull-Ups (Wide Grip)",preferred:true,alt:"Lat Pulldown — dual handles neutral grip",feeders:"3 Sets",sets:6,repRange:"6–10",rest:"90 sec",notes:"BARBELL: N/A — bodyweight only. Dead hang at bottom. Pull until chin clears bar. 30–50 total reps across as many sets as needed, 2 reps shy of failure each set. Strength week: 5–10 lb added load ONLY if zero cervical symptoms. Revert to lat pulldown at any pain.",spineFlag:"C6-C7: BODYWEIGHT ONLY on volume and hypertrophy weeks. Monitor shoulder every set. Revert to lat pulldown at any radiating symptoms."},
+      {id:"tue_02",number:"02",tier:"PRIMARY COMPOUND",name:"TechnoGym ISO-Low Row — Black Adam Protocol",preferred:true,alt:"Single-Arm DB Row — support on bench",feeders:"3 Sets",sets:6,repRange:"15",rest:"75 sec",notes:"BLACK ADAM PROTOCOL: 10 alternating reps (left, right, left, right...) then 5 bilateral reps together = 15 total per set. Full shoulder blade protraction before each rep. Pull to lower chest. Bilateral finish creates maximum mid-back contraction. No bent-over barbell rows, ever.",spineFlag:"L3-S1: Bent-over barbell rows permanently excluded. ISO-Low Row is your primary thickness movement."},
+      {id:"tue_03",number:"03",tier:"SECONDARY COMPOUND",name:"Wide Lat Pulldown + Close Grip Pulldown",preferred:false,alt:null,feeders:"2 Sets",sets:6,repRange:"10–12",rest:"60 sec",notes:"SUPERSET: Wide overhand first — full stretch at top, pull to chest. Swap attachment immediately for close neutral grip. Two grip variations covers lat width vs depth spectrum. Full ROM on both.",spineFlag:null,isSuperset:true,repRangeA:"10–12",repRangeB:"10–12",subName:"Close Grip Pulldown"},
+      {id:"tue_04",number:"04",tier:"ISOLATION",name:"Straight-Arm Pulldown",preferred:false,alt:"DB Pullover on flat bench",feeders:null,sets:6,repRange:"12–15",rest:"60 sec",notes:"CABLE: High cable attachment. Slight bend in elbows — locked throughout. Push hands toward the floor. Completely isolates the lat, removes bicep from the movement. Builds the lat sweep over time.",spineFlag:null},
+    ],
+    finisher:{name:"Bayesian Curl — FST-7 Bicep Finisher",duration:"FST-7",protocol:"7 sets × 12–15 reps, 30 sec rest between sets. Cable set low behind you, step forward so the cable pulls the arm back into full shoulder extension — this is the fully lengthened bicep position. Curl to peak, squeeze hard, return slowly to full stretch. Do not let the elbow drift forward. This is the optimal FST-7 fascial stretch position for the bicep.",influence:"Hany Rambod — FST-7"},
+    conditioning:{options:[{name:"Sled Drag Intervals",protocol:"6 × 20m drags facing forward. 30 sec walk recovery. Moderate load — hold pace all 6 intervals."},{name:"Rowing Intervals",protocol:"4–6 × 500m on rower. 1 min rest between. Drive through legs — not the back."}]},
+    cooldown:"Band pull-aparts × 20. Thoracic foam roller — 2 min, gentle.",
+  },
+  WED:{
+    day:"WED",fullDay:"WEDNESDAY",focus:"LEGS",subtitle:"Posterior Chain Priority — Highest Recovery Demand",
+    warmup:[
+      {item:"Face Pull",equipment:"CABLE",notes:"Light cable, high pulley. 2 × 20. MANDATORY every session."},
+      {item:"Band Pull-Apart",equipment:"BAND",notes:"Light band. 2 × 20. MANDATORY."},
+      {item:"Hip Flexor Couch Stretch",equipment:"BODYWEIGHT",notes:"30 sec each side. Against a wall or bench. Do not skip — L3-S1 prep."},
+      {item:"Banded Glute Bridge",equipment:"BAND",notes:"Mini band above knees. 15 reps. Activate posterior chain before any loading."},
+      {item:"Hex Bar Feeder Sets",equipment:"BARBELL",notes:"40% × 5 / 60% × 3. Move deliberately. Feel L3-S1 each set. Any discomfort: pivot to leg press only for the entire session."},
+    ],
+    exercises:[
+      {id:"wed_01",number:"01",tier:"PRIMARY POSTERIOR CHAIN",name:"Hex Bar Deadlift",preferred:true,alt:"Cable Pull-Through — same rep targets, spine neutral",feeders:"3 Sets",sets:6,repRange:"10–12",rest:"90 sec",notes:"BARBELL: High handles only. Hinge — do not squat. Drive floor away, lock out hips at top. Do not round lower back at any point. RPE 6 hard cap — 4–5 reps in the tank always. Hypertrophy week: drop to 60% of strength week load.",spineFlag:"HARD CAP: RPE 6 maximum always. 4–5 reps in the tank. Log any pain after every set. Stop immediately and revert to cable pull-through at any symptoms."},
+      {id:"wed_02",number:"02",tier:"PRIMARY COMPOUND",name:"Leg Press + Wall-Sit to Failure",preferred:true,alt:null,feeders:"2 Sets",sets:6,repRange:"10–15",rest:"75 sec",notes:"SUPERSET: Feet shoulder-width, toes out 10–15 degrees. Stop depth where lumbar stays flat on pad — non-negotiable. Wall-sit immediately after each set — flushes capacity. No axial spinal loading.",spineFlag:"L3-S1: Lumbar must stay in contact with pad through full ROM.",isSuperset:true,repRangeA:"10–15",repRangeB:"to failure",subName:"Wall-Sit"},
+      {id:"wed_03",number:"03",tier:"SECONDARY COMPOUND",name:"DB Reverse Lunge",preferred:true,alt:"Stationary DB Lunge",feeders:"2 Sets",sets:6,repRange:"10–12 per leg",rest:"60 sec",notes:"DUMBBELL: Step backward — rear knee toward floor, front knee stays over toes. Torso upright throughout. Drive through front heel to stand. DBs at sides — no barbell, no axial load.",spineFlag:null},
+      {id:"wed_04",number:"04",tier:"ISOLATION",name:"Lying Leg Curl",preferred:false,alt:"Seated Leg Curl — hamstring in lengthened position",feeders:null,sets:6,repRange:"10–12",rest:"60 sec",notes:"Full stretch at bottom — 2 sec controlled eccentric. Seated curl preferred when available: superior hypertrophy stimulus via lengthened position.",spineFlag:null},
+      {id:"wed_05",number:"05",tier:"ISOLATION",name:"Standing Calf Raise",preferred:false,alt:"Seated Calf Raise",feeders:null,sets:6,repRange:"15–20",rest:"45 sec",notes:"Full ROM every rep. Pause 1 second at full stretch. Hard squeeze at top. Do not bounce at the bottom.",spineFlag:null},
+    ],
+    finisher:{name:"Sled Push — MTNTOUGH Protocol",duration:"10 MIN",protocol:"8–10 × 15–20m pushes, moderate load. Walk 60–90 sec recovery. This IS the conditioning block on leg day — no separate finisher.",influence:"SOFlete / MTNTOUGH"},
+    conditioning:null,
+    cooldown:"Hip flexor stretch 90 sec per side. Quad stretch 60 sec. Light walk 2 min. No sauna.",
+  },
+  THU:{
+    day:"THU",fullDay:"THURSDAY",focus:"SHOULDERS",subtitle:"Primary Overhead Day",
+    warmup:[
+      {item:"Face Pull",equipment:"CABLE",notes:"Light cable, high pulley. 2 × 20. MANDATORY every session."},
+      {item:"Band Pull-Apart",equipment:"BAND",notes:"Light band. 2 × 20. MANDATORY."},
+      {item:"Band Shoulder Dislocates",equipment:"BAND",notes:"Light band. 10 slow passes from front to back. C6-C7 prep — never skip before any overhead pressing."},
+      {item:"Light Lateral Raise Primer",equipment:"DUMBBELL",notes:"Very light DBs. 2 × 15. Wake up medial delt before loading. Feel the shoulder, not the trap."},
+    ],
+    exercises:[
+      {id:"thu_01",number:"01",tier:"PRIMARY COMPOUND",name:"Seated DB Overhead Press",preferred:true,alt:"Iso-Hammer Shoulder Press / Seated Smith Machine OHP",feeders:"3 Sets",sets:6,repRange:"8–12",rest:"75 sec",notes:"DUMBBELL — SEATED ONLY, ALWAYS. Stop at 90% lockout. Hypertrophy week: swap to DB Arnold Press for greater ROM and anterior delt development. Iso-Hammer Shoulder Press is the cleanest alternative — independent arm loading, fully supported back, natural arc.",spineFlag:"C6-C7: Seated and supported ALWAYS. No standing press EVER. Switch to Iso-Hammer or Smith at any cervical symptoms."},
+      {id:"thu_02",number:"02",tier:"ISOLATION",name:"DB Upright Row + DB Shrugs",preferred:false,alt:null,feeders:"1 Set",sets:6,repRange:"10–12",rest:"60 sec",notes:"DUMBBELL SUPERSET: Upright row — elbows above wrists, lead with elbows not hands. Shrugs immediately after — do not rotate shoulders at top. Trap activation and upper lateral delt in one block.",spineFlag:null,isSuperset:true,repRangeA:"10–12",repRangeB:"15",subName:"DB Shrugs"},
+      {id:"thu_03",number:"03",tier:"ISOLATION",name:"Side Lateral Raise + Plate Front Raise",preferred:false,alt:"Cable Lateral Raise (single arm) — constant tension",feeders:null,sets:6,repRange:"10–15",rest:"60 sec",notes:"DUMBBELL SUPERSET: Lateral raise — slight forward lean, lead with elbow, pinky slightly higher than thumb, 2 sec eccentric. Front raise — controlled arc, no momentum. Rotate to reverse fly immediately.",spineFlag:null,isSuperset:true,repRangeA:"10–15",repRangeB:"10–15",subName:"Plate Front Raise"},
+      {id:"thu_04",number:"04",tier:"ISOLATION",name:"Reverse Incline DB Reverse Fly",preferred:false,alt:null,feeders:null,sets:6,repRange:"12–15",rest:"60 sec",notes:"DUMBBELL: Chest on incline bench at 45°. Bilateral. Fly out until upper arms parallel. Hold 1 sec peak contraction. Rear delt isolation — spine fully supported. Two rear delt sessions per week is a structural requirement.",spineFlag:null},
+    ],
+    finisher:{name:"DB Triple Set — Three-Plane Delt Finisher",duration:"8–10 MIN",protocol:"3 rounds, no rest between movements, 30 sec between rounds: A) Lateral Raise × 15 → B) Front Raise × 15 → C) Bent-Over Rear Delt Raise × 15. One pair of DBs.",influence:"CBum — Three-Plane Delt"},
+    conditioning:{options:[{name:"Battle Ropes",protocol:"45 sec on / 15 sec off × 5 rounds. Alternate: waves, slams, lateral shuffle."},{name:"Jump Rope",protocol:"5 min continuous moderate pace. Strength week: 10 min full block."}]},
+    cooldown:"Band pull-aparts × 20. Gentle neck rolls. Shoulder stretch 60 sec per side.",
+  },
+  FRI:{
+    day:"FRI",fullDay:"FRIDAY",focus:"ARMS",subtitle:"Dedicated Arm Day — Fresh Primary Stimulus",
+    warmup:[
+      {item:"Face Pull",equipment:"CABLE",notes:"Light cable, high pulley. 2 × 20. MANDATORY every session."},
+      {item:"Band Pull-Apart",equipment:"BAND",notes:"Light band. 2 × 20. MANDATORY."},
+      {item:"Barbell Curl Feeder Sets",equipment:"BARBELL",notes:"50% × 8 / 70% × 5. Bicep warm-up before loading. Feel elbow joint — no pain."},
+      {item:"Tricep Pushdown Primer",equipment:"CABLE",notes:"Light cable, 1 × 15. Very light. Warm up elbow joint and tricep tendon before loading."},
+    ],
+    exercises:[
+      {id:"fri_01",number:"01",tier:"PRIMARY BICEP COMPOUND",name:"Barbell Curl",preferred:true,alt:"EZ-Bar Curl — reduces wrist stress",feeders:"3 Sets",sets:6,repRange:"8–12",rest:"75 sec",notes:"BARBELL: Full hang at bottom — no partial reps. Shoulder-width or slightly wider grip. Curl to top, squeeze hard 1 sec. Do not swing. Do not let elbows drift forward. Hypertrophy week: 21s LEAD the session instead of this movement.",spineFlag:null},
+      {id:"fri_02",number:"02",tier:"PRIMARY TRICEP — LONG HEAD",name:"Single-Arm Overhead DB Extension",preferred:true,alt:"Overhead Cable Extension",feeders:"3 Sets",sets:6,repRange:"10–12",rest:"75 sec",notes:"DUMBBELL: Most important tricep hypertrophy movement. Long head fully stretched in overhead position — primary horseshoe shape driver. Full stretch at bottom, 2 sec eccentric. This goes before pushdown superset so long head gets freshest drive.",spineFlag:"C6-C7: Switch to overhead cable extension at any cervical symptoms."},
+      {id:"fri_03",number:"03",tier:"SUPERSET — BICEPS",name:"Hammer Curls + Seated DB Curls",preferred:false,alt:null,feeders:null,sets:6,repRange:"10–12",rest:"60 sec",notes:"DUMBBELL SUPERSET: Hammer curls first for brachialis development — neutral grip, full ROM. Seated DB curls immediately after for peak contraction — supinate fully at top. Both arms simultaneously.",spineFlag:null,isSuperset:true,repRangeA:"10–12",repRangeB:"10–12",subName:"Seated DB Curls",armAccessory:true},
+      {id:"fri_04",number:"04",tier:"SUPERSET — TRICEPS",name:"Rope Tricep Pushdown + Cable Curl",preferred:false,alt:null,feeders:null,sets:6,repRange:"12–15",rest:"60 sec",notes:"CABLE SUPERSET: Pushdown — spread rope at bottom, full extension. Cable curl — full supination at top, squeeze hard. True antagonist pairing. Bicep rests while tricep works.",spineFlag:null,isSuperset:true,repRangeA:"12–15",repRangeB:"12–15",subName:"Cable Curl",armAccessory:true},
+      {id:"fri_05",number:"05",tier:"FST-7 BICEP FINISHER",name:"Barbell Curl 21s",preferred:false,alt:"DB Curl 21s",feeders:null,sets:3,repRange:"3 × 21",rest:"60 sec",notes:"BARBELL: 7 reps bottom half → 7 reps top half → 7 full reps = 21 total. Hany Rambod FST-7 fascial stretch. Light weight. Hypertrophy week: 21s LEAD the session (4 × 21) as primary bicep movement.",spineFlag:null,armAccessory:true},
+      {id:"fri_06",number:"06",tier:"CBum ISOLATION",name:"Spider Curl",preferred:false,alt:"Concentration Curl",feeders:null,sets:3,repRange:"12–15",rest:"60 sec",notes:"DUMBBELL: Chest against incline pad, arms hang perpendicular. Deepest possible bicep stretch. Full range, 1-sec squeeze at top. CBum spider curls for peak development.",spineFlag:null,armAccessory:true},
+    ],
+    finisher:{name:"Drop Set Pump Finisher",duration:"8 MIN",protocol:"Spider Curl 2 × 15–20 → Cable Curl drop set: start heavy, drop 20% every 10 reps × 3 drops. Full pump and fascial stretch.",influence:"CBum + Hany Rambod FST-7"},
+    conditioning:{options:[{name:"KB Complex",protocol:"5 rounds: 15 KB swings + 10 push-ups. 30 sec rest. Lower body dominant — arms are already taxed."},{name:"400m Repeats",protocol:"4–6 × 400m. 2 min rest between. Strength week: full 10-min block."}]},
+    cooldown:"3 min easy walk. Bicep and tricep stretch. Week is done.",
+  },
+};
+
+const DAY_ORDER=["MON","TUE","WED","THU","FRI"];
+
+// ── MAIN APP ──────────────────────────────────────────────────────
+function App(){
+  const[view,setView]=useState("session");
+  const[activeDay,setActiveDay]=useState("MON");
+  const[week,setWeek]=useState(()=>LS.get("tm_week")||1);
+  const[sessionLog,setSessionLog]=useState(()=>LS.get("tm_log")||{});
+  const[completed,setCompleted]=useState(()=>LS.get("tm_completed")||{});
+  const[readinessLog,setReadinessLog]=useState(()=>LS.get("tm_readiness")||{});
+  const[condLog,setCondLog]=useState(()=>LS.get("tm_cond")||{});
+  const[bandLog,setBandLog]=useState(()=>LS.get("tm_bands")||{});
+  const[cardioLog,setCardioLog]=useState(()=>LS.get("tm_cardio")||[]);
+  const[screenFlash,setScreenFlash]=useState(false);
+  const[ri,setRi]=useState({bodyBattery:70,sleepScore:75,trainingReadiness:65,hrv:"favorable",restingHR:"at",soreness:2,motivation:8});
+  const[todayScore,setTodayScore]=useState(null);
+
+  const phase=getPhase(week);
+  const session=SESSIONS[activeDay];
+  const today=new Date().toDateString();
+  const isComplete=!!completed[activeDay+"_w"+week];
+  globalFlashFn=()=>{setScreenFlash(true);setTimeout(()=>setScreenFlash(false),3500);};
+
+  function setWeekSave(w){setWeek(w);LS.set("tm_week",w);}
+  function getLogA(id){return sessionLog[id+"_w"+week+"_a"]||[];}
+  function getLogB(id){return sessionLog[id+"_w"+week+"_b"]||[];}
+  function handleLog(id,ab,si,field,val){
+    const key=id+"_w"+week+"_"+ab;const curr=sessionLog[key]||[];
+    const upd=[...curr];if(!upd[si])upd[si]={};upd[si][field]=val;
+    const nl={...sessionLog,[key]:upd};setSessionLog(nl);LS.set("tm_log",nl);
+  }
+  function markComplete(){
+    const k=activeDay+"_w"+week;
+    const nc={...completed,[k]:{date:today,ts:Date.now()}};setCompleted(nc);LS.set("tm_completed",nc);
+  }
+  function handleReadiness(){
+    const score=scoreReadiness(ri);
+    const entry={score,tier:getTier(score).tier,date:today};
+    const nl={...readinessLog,[today]:entry};setReadinessLog(nl);setTodayScore(score);LS.set("tm_readiness",nl);
+  }
+  function handleCondLog(key,val){const nl={...condLog,[key]:val};setCondLog(nl);LS.set("tm_cond",nl);}
+  function handleBandLog(key,val){const nl={...bandLog,[key]:val};setBandLog(nl);LS.set("tm_bands",nl);}
+  function handleCardioLog(log){setCardioLog(log);LS.set("tm_cardio",log);}
+
+  // ── LABEL STYLE ─────────────────────────────────────────────────
+  const sectionLabel={fontSize:"12px",letterSpacing:"2px",color:C.gold,textTransform:"uppercase",fontWeight:"bold",marginBottom:"10px",display:"block"};
+
+  return(
+    <div style={{minHeight:"100vh",background:screenFlash?"#1A4A00":C.bg,color:C.white,paddingBottom:"80px",transition:screenFlash?"background 0.05s":"background 0.4s"}}>
+
+      {/* ── TOP HEADER ── */}
+      <div style={{background:C.surfaceMid,borderBottom:`2px solid ${C.gold}`,padding:"18px 18px 0",position:"sticky",top:0,zIndex:20}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"14px"}}>
+          <div>
+            <div style={{fontSize:"10px",letterSpacing:"4px",color:C.textMuted,textTransform:"uppercase",marginBottom:"4px"}}>AmFam Swift Creek</div>
+            <div style={{fontSize:"18px",fontWeight:"bold",letterSpacing:"1px",color:C.white}}>TACTICAL MONSTER</div>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:"6px"}}>
+            <div style={{fontSize:"10px",color:C.textMuted,letterSpacing:"2px",textTransform:"uppercase",fontWeight:"bold"}}>WEEK</div>
+            <div style={{display:"flex",gap:"3px",flexWrap:"wrap",justifyContent:"flex-end"}}>
+              {[...Array(12)].map((_,i)=>{
+                const wk=i+1;const isA=week===wk;const wp=getPhaseType(wk);
+                const wc=wp==="volume"?C.gold:wp==="strength"?"#FF6B6B":wp==="hypertrophy"?C.accent:C.green;
+                return(<div key={i} onClick={()=>setWeekSave(wk)} style={{width:"22px",height:"22px",borderRadius:"4px",display:"flex",alignItems:"center",justifyContent:"center",background:isA?wc:"transparent",border:`1.5px solid ${isA?wc:C.borderMid}`,color:isA?C.bg:C.textMuted,fontSize:"10px",fontWeight:"bold",cursor:"pointer"}}>{wk}</div>);
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Phase banner */}
+        <div style={{background:C.goldLight,border:`1.5px solid ${C.goldBorder}`,borderLeft:`4px solid ${C.gold}`,borderRadius:"6px",padding:"10px 14px",marginBottom:"14px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <div style={{fontSize:"10px",letterSpacing:"2px",color:C.gold,textTransform:"uppercase",fontWeight:"bold"}}>CYCLE {phase.cycleNum} — {phase.name}</div>
+              <div style={{fontSize:"14px",color:C.white,marginTop:"2px",fontWeight:"bold"}}>{phase.rir} · {phase.sets} sets · {phase.restNote}</div>
+            </div>
+            <div style={{fontSize:"12px",color:C.textMid,maxWidth:"130px",textAlign:"right",lineHeight:1.4}}>{phase.note}</div>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div style={{display:"flex",borderBottom:`1px solid ${C.border}`}}>
+          {[["session","SESSION"],["cardio","CARDIO"],["readiness","READINESS"],["tracker","TRACKER"],["bodycomp","BODY COMP"]].map(([v,l])=>(
+            <button key={v} onClick={()=>setView(v)} style={{flex:1,padding:"11px 2px",background:"transparent",border:"none",borderBottom:`2.5px solid ${view===v?C.gold:"transparent"}`,color:view===v?C.gold:C.textMuted,fontSize:"9px",letterSpacing:"1px",textTransform:"uppercase",fontWeight:view===v?"bold":"normal"}}>
+              {l}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ══ SESSION VIEW ══ */}
+      {view==="session"&&(
+        <div>
+          {/* Day tabs — uniform styling */}
+          <div style={{padding:"14px 18px",background:C.surfaceMid,borderBottom:`1px solid ${C.border}`,display:"flex",gap:"6px"}}>
+            {DAY_ORDER.map(d=>{
+              const done=!!completed[d+"_w"+week];const isA=activeDay===d;
+              return(
+                <button key={d} onClick={()=>setActiveDay(d)} style={{flex:1,padding:"11px 4px",background:isA?C.gold:"transparent",border:`1.5px solid ${isA?C.gold:done?C.green:C.borderMid}`,borderRadius:"6px",color:isA?C.bg:done?C.green:C.textMid,fontSize:"11px",fontWeight:"bold",letterSpacing:"1px",textTransform:"uppercase"}}>
+                  {done&&!isA?"✓":d}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Session header — uniform */}
+          <div style={{padding:"20px 18px 16px",background:"rgba(0,40,120,0.5)",borderBottom:`1px solid ${C.border}`}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"16px"}}>
+              <div>
+                <div style={{fontSize:"26px",fontWeight:"bold",color:C.gold,lineHeight:1.1}}>{session.focus}</div>
+                <div style={{fontSize:"14px",color:C.textMid,marginTop:"4px"}}>{session.subtitle}</div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                {session.recoveryDemand==="HIGH"&&<div style={{fontSize:"11px",color:"#FF8C42",fontWeight:"bold",letterSpacing:"1px",marginBottom:"4px"}}>HIGH DEMAND</div>}
+                {isComplete&&<div style={{fontSize:"11px",color:C.green,fontWeight:"bold",letterSpacing:"1px"}}>✓ COMPLETE</div>}
+              </div>
+            </div>
+          </div>
+
+          {/* Warm-up */}
+          <div style={{padding:"16px 18px",borderBottom:`1px solid ${C.border}`,background:"rgba(0,32,91,0.4)"}}>
+            <div style={sectionLabel}>Warm-Up Protocol</div>
+            {session.warmup.map((item,i)=>(
+              <div key={i} style={{padding:"10px 0",borderBottom:i<session.warmup.length-1?`1px solid ${C.border}`:"none"}}>
+                <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"4px"}}>
+                  <span style={{fontSize:"10px",letterSpacing:"1px",color:C.bg,background:item.equipment==="BAND"?C.gold:item.equipment==="CABLE"?C.accent:item.equipment==="BARBELL"?"#FF8C42":C.green,padding:"2px 7px",borderRadius:"3px",fontWeight:"bold",flexShrink:0}}>{item.equipment}</span>
+                  <span style={{fontSize:"15px",fontWeight:"bold",color:C.white}}>{item.item}</span>
+                </div>
+                <div style={{fontSize:"13px",color:C.textMid,lineHeight:1.5,paddingLeft:"0px"}}>{item.notes}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Exercises */}
+          <div style={{padding:"0 18px",background:"rgba(0,32,91,0.3)"}}>
+            {session.exercises.map(ex=>(
+              <ExerciseRow key={ex.id} ex={ex} week={week} phaseType={phase.type}
+                logA={getLogA(ex.id)} logB={getLogB(ex.id)}
+                onLogA={(si,f,v)=>handleLog(ex.id,"a",si,f,v)}
+                onLogB={(si,f,v)=>handleLog(ex.id,"b",si,f,v)}
+                bandLog={bandLog} onBandLog={handleBandLog}/>
+            ))}
+          </div>
+
+          {/* Finisher + Conditioning + Complete */}
+          <div style={{padding:"16px 18px",background:"rgba(0,32,91,0.3)"}}>
+            {session.finisher&&(
+              <ExpandCard label="PUMP FINISHER" sublabel={session.finisher.name} influence={session.finisher.influence}>
+                <div style={{fontSize:"11px",letterSpacing:"2px",color:C.gold,textTransform:"uppercase",fontWeight:"bold",marginBottom:"6px"}}>{session.finisher.duration}</div>
+                <div style={{fontSize:"14px",color:C.white,lineHeight:1.6}}>{session.finisher.protocol}</div>
+              </ExpandCard>
+            )}
+
+            {session.conditioning&&(
+              <ExpandCard label="CONDITIONING" sublabel={phase.type==="strength"?"10 MIN — Full Block":"5 MIN"}>
+                <ConditioningTracker
+                  sessionKey={activeDay+"_w"+week}
+                  condLog={condLog} onCondLog={handleCondLog}
+                  options={session.conditioning.options}
+                  phaseType={phase.type}/>
+              </ExpandCard>
+            )}
+
+            {session.finisher===null&&(
+              // Leg day — conditioning IS the finisher
+              <div style={{background:C.surface,border:`1.5px solid ${C.borderMid}`,borderRadius:"8px",padding:"16px",marginBottom:"10px"}}>
+                <div style={{fontSize:"11px",letterSpacing:"2px",color:C.gold,textTransform:"uppercase",fontWeight:"bold",marginBottom:"6px"}}>CONDITIONING / FINISHER</div>
+                <div style={{fontSize:"15px",fontWeight:"bold",color:C.white,marginBottom:"6px"}}>{session.finisher?.name||"Sled Push — MTNTOUGH Protocol"}</div>
+                <ConditioningTracker
+                  sessionKey={activeDay+"_w"+week}
+                  condLog={condLog} onCondLog={handleCondLog}
+                  options={[{name:"Sled Push",protocol:"8–10 × 15–20m, moderate load. Walk 60–90 sec recovery."}]}
+                  phaseType={phase.type}/>
+              </div>
+            )}
+
+            {session.cooldown&&(
+              <ExpandCard label="COOL-DOWN" sublabel="Post-Session Protocol">
+                <div style={{fontSize:"14px",color:C.textMid,lineHeight:1.7}}>{session.cooldown}</div>
+              </ExpandCard>
+            )}
+
+            <button onClick={markComplete} disabled={isComplete} style={{width:"100%",padding:"16px",background:isComplete?C.greenLight:C.gold,border:`1.5px solid ${isComplete?C.green:C.gold}`,borderRadius:"8px",color:isComplete?C.green:C.bg,fontSize:"13px",fontWeight:"bold",letterSpacing:"2px",textTransform:"uppercase",marginTop:"6px"}}>
+              {isComplete?"✓ SESSION COMPLETE":"MARK SESSION COMPLETE"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ══ CARDIO VIEW ══ */}
+      {view==="cardio"&&(
+        <div style={{padding:"20px 18px"}}>
+          <div style={sectionLabel}>Cardio Log</div>
+          <CardioLogView cardioLog={cardioLog} onCardioLog={handleCardioLog}/>
+        </div>
+      )}
+
+      {/* ══ READINESS VIEW ══ */}
+      {view==="readiness"&&(
+        <div style={{padding:"20px 18px"}}>
+          <div style={sectionLabel}>Daily Readiness — 70 Point System</div>
+
+          {todayScore!==null&&(()=>{
+            const t=getTier(todayScore);
+            return(
+              <div style={{background:t.bg,border:`1.5px solid ${t.color}55`,borderLeft:`4px solid ${t.color}`,borderRadius:"8px",padding:"16px",marginBottom:"20px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div>
+                    <div style={{fontSize:"12px",letterSpacing:"2px",color:t.color,textTransform:"uppercase",fontWeight:"bold",marginBottom:"4px"}}>{t.tier} — {t.label}</div>
+                    <div style={{fontSize:"13px",color:C.textMid,lineHeight:1.5}}>{t.note}</div>
+                  </div>
+                  <div style={{fontSize:"40px",fontWeight:"bold",color:t.color}}>{todayScore}<span style={{fontSize:"14px",color:C.textFaint}}>/70</span></div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {[{label:"Body Battery (Garmin)",key:"bodyBattery",ph:"0–100"},{label:"Sleep Score (Garmin)",key:"sleepScore",ph:"0–100"},{label:"Training Readiness (Garmin)",key:"trainingReadiness",ph:"0–100"}].map(f=>(
+            <div key={f.key} style={{background:C.surface,border:`1.5px solid ${C.borderMid}`,borderRadius:"8px",padding:"14px 16px",marginBottom:"10px"}}>
+              <div style={{fontSize:"12px",color:C.textMid,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"8px",fontWeight:"bold"}}>{f.label}</div>
+              <input type="number" placeholder={f.ph} value={ri[f.key]||""} onChange={e=>setRi({...ri,[f.key]:parseFloat(e.target.value)||0})} style={{textAlign:"left"}}/>
+            </div>
+          ))}
+
+          {[{label:"HRV Status",key:"hrv",opts:[["favorable","Favorable"],["balanced","Balanced"],["unbalanced","Unbalanced"],["poor","Poor"]]},{label:"Resting HR vs 30-Day Avg",key:"restingHR",opts:[["at","At / Below"],["1-3","1–3 Above"],["4-6","4–6 Above"],["7+","7+ Above"]]}].map(f=>(
+            <div key={f.key} style={{background:C.surface,border:`1.5px solid ${C.borderMid}`,borderRadius:"8px",padding:"14px 16px",marginBottom:"10px"}}>
+              <div style={{fontSize:"12px",color:C.textMid,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"10px",fontWeight:"bold"}}>{f.label}</div>
+              <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+                {f.opts.map(([val,lbl])=>(
+                  <button key={val} onClick={()=>setRi({...ri,[f.key]:val})} style={{flex:1,minWidth:"70px",padding:"10px 6px",background:ri[f.key]===val?C.gold:"transparent",border:`1.5px solid ${ri[f.key]===val?C.gold:C.borderMid}`,borderRadius:"6px",color:ri[f.key]===val?C.bg:C.textMid,fontSize:"12px",fontWeight:ri[f.key]===val?"bold":"normal"}}>{lbl}</button>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {[{label:"Soreness / Pain (0–10)",key:"soreness",hint:"0 = none  ·  10 = severe"},{label:"Motivation (0–10)",key:"motivation",hint:"0 = none  ·  10 = fired up"}].map(f=>(
+            <div key={f.key} style={{background:C.surface,border:`1.5px solid ${C.borderMid}`,borderRadius:"8px",padding:"14px 16px",marginBottom:"10px"}}>
+              <div style={{fontSize:"12px",color:C.textMid,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"3px",fontWeight:"bold"}}>{f.label}</div>
+              <div style={{fontSize:"11px",color:C.textFaint,marginBottom:"10px",fontWeight:"500"}}>{f.hint}</div>
+              <input type="number" placeholder="0–10" min={0} max={10} value={ri[f.key]||""} onChange={e=>setRi({...ri,[f.key]:parseFloat(e.target.value)||0})} style={{textAlign:"left"}}/>
+            </div>
+          ))}
+
+          <button onClick={handleReadiness} style={{width:"100%",padding:"16px",background:C.gold,border:"none",borderRadius:"8px",color:C.bg,fontSize:"13px",fontWeight:"bold",letterSpacing:"2px",textTransform:"uppercase",marginBottom:"24px"}}>CALCULATE READINESS</button>
+
+          {todayScore!==null&&(()=>{
+            const inputs=[
+              ["Body Battery",parseFloat((ri.bodyBattery/10).toFixed(1))],
+              ["Sleep Score",parseFloat((ri.sleepScore/10).toFixed(1))],
+              ["Training Readiness",parseFloat((ri.trainingReadiness/10).toFixed(1))],
+              ["HRV Status",({favorable:10,balanced:7,unbalanced:4,poor:1})[ri.hrv]||5],
+              ["Resting HR",({at:10,"1-3":7,"4-6":4,"7+":1})[ri.restingHR]||5],
+              ["Soreness",parseFloat((10-ri.soreness).toFixed(1))],
+              ["Motivation",parseFloat(ri.motivation.toFixed(1))],
+            ];
+            return(
+              <div style={{background:C.surface,border:`1.5px solid ${C.borderMid}`,borderRadius:"8px",padding:"16px",marginBottom:"24px"}}>
+                <div style={sectionLabel}>Score Breakdown</div>
+                {inputs.map(([label,score])=>(
+                  <div key={label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:`1px solid ${C.border}`}}>
+                    <div style={{fontSize:"13px",color:C.textMid,fontWeight:"500"}}>{label}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+                      <div style={{width:"80px",height:"5px",background:"rgba(255,255,255,0.1)",borderRadius:"2px",overflow:"hidden"}}>
+                        <div style={{width:`${(score/10)*100}%`,height:"100%",background:score>=7?C.green:score>=4?C.gold:"#FF4444",borderRadius:"2px"}}/>
+                      </div>
+                      <div style={{fontSize:"16px",fontWeight:"bold",color:score>=7?C.green:score>=4?C.gold:"#FF4444",minWidth:"28px",textAlign:"right"}}>{score}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
+          {Object.keys(readinessLog).length>0&&(
+            <div>
+              <div style={sectionLabel}>Recent History</div>
+              {Object.entries(readinessLog).slice(-5).reverse().map(([date,entry])=>{
+                const t=getTier(entry.score);
+                return(
+                  <div key={date} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:`1px solid ${C.border}`}}>
+                    <div style={{fontSize:"13px",color:C.textMid,fontWeight:"500"}}>{date}</div>
+                    <div style={{display:"flex",gap:"14px",alignItems:"center"}}>
+                      <div style={{fontSize:"11px",color:t.color,letterSpacing:"1px",fontWeight:"bold"}}>{entry.tier}</div>
+                      <div style={{fontSize:"17px",color:t.color,fontWeight:"bold"}}>{entry.score}<span style={{fontSize:"11px",color:C.textFaint}}>/70</span></div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══ TRACKER VIEW ══ */}
+      {view==="tracker"&&(
+        <div style={{padding:"20px 18px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"20px"}}>
+            <div style={sectionLabel}>Week {week} — {phase.name}</div>
+            <button onClick={()=>exportCSV(sessionLog,readinessLog,LS.get("tm_bodycomp")||[],condLog,cardioLog,week)} style={{background:C.surfaceMid,border:`1.5px solid ${C.borderMid}`,borderRadius:"6px",padding:"10px 16px",color:C.white,fontSize:"11px",letterSpacing:"1px",textTransform:"uppercase",fontWeight:"bold"}}>⬇ CSV</button>
+          </div>
+
+          {/* Completion grid */}
+          <div style={{background:C.surface,border:`1.5px solid ${C.borderMid}`,borderRadius:"8px",padding:"16px",marginBottom:"22px"}}>
+            <div style={sectionLabel}>Session Completion</div>
+            <div style={{display:"flex",gap:"6px"}}>
+              {DAY_ORDER.map(d=>{
+                const done=!!completed[d+"_w"+week];
+                return(<div key={d} style={{flex:1,textAlign:"center",padding:"12px 4px",borderRadius:"6px",background:done?C.greenLight:C.surface,border:`1.5px solid ${done?C.green:C.border}`,fontSize:"11px",fontWeight:"bold",color:done?C.green:C.textFaint}}>{done?"✓":d}</div>);
+              })}
+            </div>
+          </div>
+
+          {/* Conditioning log summary */}
+          <div style={{background:C.surface,border:`1.5px solid ${C.borderMid}`,borderRadius:"8px",padding:"16px",marginBottom:"22px"}}>
+            <div style={sectionLabel}>Conditioning This Week</div>
+            {DAY_ORDER.map(d=>{
+              const entry=condLog[d+"_w"+week];
+              if(!entry||!entry.selected)return null;
+              return(
+                <div key={d} style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
+                  <div style={{fontSize:"13px",color:C.textMid,fontWeight:"bold"}}>{d}</div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:"13px",color:C.white,fontWeight:"bold"}}>{entry.selected}</div>
+                    {entry.note&&<div style={{fontSize:"11px",color:C.textMuted,marginTop:"2px"}}>{entry.note}</div>}
+                  </div>
+                </div>
+              );
+            })}
+            {!DAY_ORDER.some(d=>condLog[d+"_w"+week]?.selected)&&<div style={{fontSize:"13px",color:C.textFaint,fontStyle:"italic"}}>No conditioning logged yet this week.</div>}
+          </div>
+
+          {/* Band log summary */}
+          <div style={{background:C.surface,border:`1.5px solid ${C.borderMid}`,borderRadius:"8px",padding:"16px",marginBottom:"22px"}}>
+            <div style={sectionLabel}>Band Usage This Week</div>
+            {Object.entries(bandLog).filter(([k,v])=>v).map(([k,v])=>(
+              <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${C.border}`}}>
+                <div style={{fontSize:"12px",color:C.textMuted,fontWeight:"500"}}>{k}</div>
+                <div style={{fontSize:"13px",color:C.gold,fontWeight:"bold"}}>{v}</div>
+              </div>
+            ))}
+            {!Object.values(bandLog).some(v=>v)&&<div style={{fontSize:"13px",color:C.textFaint,fontStyle:"italic"}}>No band usage logged yet.</div>}
+          </div>
+
+          {/* Progressive overload per exercise */}
+          {DAY_ORDER.map(d=>{
+            const s=SESSIONS[d];
+            return(
+              <div key={d} style={{marginBottom:"24px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"10px",paddingBottom:"8px",borderBottom:`2px solid ${C.goldBorder}`}}>
+                  <div style={{fontSize:"11px",letterSpacing:"3px",color:C.gold,textTransform:"uppercase",fontWeight:"bold"}}>{s.fullDay}</div>
+                  <div style={{fontSize:"12px",color:C.textMuted,fontWeight:"500"}}>{s.focus}</div>
+                </div>
+                {s.exercises.filter(ex=>typeof ex.sets==="number"&&!ex.noLog).map(ex=>{
+                  const logA=getLogA(ex.id);
+                  const done=(logA||[]).filter(s=>s&&s.weight&&s.reps);
+                  const prog=checkProgression(logA,getPhaseRepRange(ex,phase.type)||ex.repRange||ex.repRangeA||"");
+                  const ps=getPhaseSets(ex.sets,phase.type,ex.armAccessory);
+                  const{max}=parseRange(ex.repRange||ex.repRangeA||"");
+                  return(
+                    <div key={ex.id} style={{marginBottom:"10px",background:C.surface,border:`1.5px solid ${C.border}`,borderRadius:"8px",padding:"13px 15px"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"6px"}}>
+                        <div style={{fontSize:"14px",fontWeight:"bold",color:C.white,maxWidth:"220px",lineHeight:1.3}}>{ex.name}{ex.isSuperset&&ex.subName?<span style={{fontSize:"12px",color:C.textFaint,fontWeight:"normal"}}> / {ex.subName}</span>:""}</div>
+                        {prog&&<span style={{fontSize:"9px",letterSpacing:"1px",background:C.green,color:C.bg,padding:"3px 8px",borderRadius:"3px",fontWeight:"bold",whiteSpace:"nowrap"}}>↑ ADD WEIGHT</span>}
+                      </div>
+                      <div style={{fontSize:"12px",color:C.textMuted,marginBottom:"8px",fontWeight:"500"}}>{ps} × {ex.repRange||ex.repRangeA} · {phase.name}</div>
+                      {done.length>0?(
+                        <div style={{display:"flex",gap:"5px",flexWrap:"wrap"}}>
+                          {done.map((set,si)=>(
+                            <div key={si} style={{background:parseInt(set.reps)>=max?C.greenLight:C.surfaceMid,border:`1.5px solid ${parseInt(set.reps)>=max?C.greenBorder:C.border}`,borderRadius:"4px",padding:"4px 9px",fontSize:"12px",color:parseInt(set.reps)>=max?C.green:C.textMid,fontWeight:"bold"}}>
+                              {set.weight}lb×{set.reps}<span style={{color:C.textFaint,fontWeight:"normal"}}> @{set.rir}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ):(
+                        <div style={{fontSize:"12px",color:C.textFaint,fontStyle:"italic"}}>Not logged this week</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ══ BODY COMP VIEW ══ */}
+      {view==="bodycomp"&&<BodyCompView/>}
+
+    </div>
+  );
+}
+
+const root=ReactDOM.createRoot(document.getElementById("root"));
+root.render(React.createElement(App));
+</script>
+</body>
+</html>
