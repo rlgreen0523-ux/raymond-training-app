@@ -1,0 +1,2296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+  <meta name="theme-color" content="#0D0D0F"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Tactical Monster"/>
+  <title>Tactical Monster — Raymond</title>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{background:#0D0D0F;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;-webkit-tap-highlight-color:transparent;}
+    input[type=number],input[type=text]{-webkit-appearance:none;appearance:none;background:#111115;border:1.5px solid #2A2A35;border-radius:6px;padding:10px 10px;color:#FFFFFF;font-size:15px;width:100%;}
+    input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}
+    input[type=number]::placeholder,input[type=text]::placeholder{color:#3D4455;font-style:italic;}
+    input[type=number]:focus,input[type=text]:focus{outline:none;border-color:#00D4FF;box-shadow:0 0 0 2px rgba(0,212,255,0.15);}
+    textarea{-webkit-appearance:none;background:#111115;border:1.5px solid #2A2A35;border-radius:6px;padding:10px;color:#FFFFFF;font-size:14px;width:100%;resize:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
+    textarea:focus{outline:none;border-color:#00D4FF;}
+    textarea::placeholder{color:#3D4455;font-style:italic;}
+    button{cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
+    ::-webkit-scrollbar{display:none;}
+    @keyframes flashCyan{0%{background:#0D0D0F;}30%{background:#002A35;}60%{background:#0D0D0F;}90%{background:#002A35;}100%{background:#0D0D0F;}}
+    .flash{animation:flashCyan 1.2s ease-in-out 3;}
+    @keyframes slideUp{from{transform:translateY(100%);opacity:0;}to{transform:translateY(0);opacity:1;}}
+    .slideUp{animation:slideUp 0.3s ease-out;}
+  </style>
+  <script>
+  (function(){
+    try{
+      var c=document.createElement('canvas');c.width=c.height=180;
+      var ctx=c.getContext('2d');
+      var r=36;ctx.beginPath();ctx.moveTo(r,0);ctx.lineTo(180-r,0);
+      ctx.quadraticCurveTo(180,0,180,r);ctx.lineTo(180,180-r);
+      ctx.quadraticCurveTo(180,180,180-r,180);ctx.lineTo(r,180);
+      ctx.quadraticCurveTo(0,180,0,180-r);ctx.lineTo(0,r);
+      ctx.quadraticCurveTo(0,0,r,0);ctx.closePath();
+      ctx.fillStyle='#0D0D0F';ctx.fill();
+      ctx.fillStyle='#00D4FF';ctx.fillRect(18,84,144,6);
+      ctx.fillStyle='#00D4FF';ctx.font='bold 90px Georgia,serif';
+      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('T',90,44);
+      ctx.fillStyle='#FFFFFF';ctx.font='bold 74px Georgia,serif';
+      ctx.fillText('M',90,132);
+      var url=c.toDataURL('image/png');
+      var l1=document.createElement('link');l1.rel='apple-touch-icon';l1.href=url;document.head.appendChild(l1);
+      var l2=document.createElement('link');l2.rel='icon';l2.type='image/png';l2.href=url;document.head.appendChild(l2);
+    }catch(e){}
+  })();
+  </script>
+  <script>
+  (function(){
+    var m={name:"Tactical Monster",short_name:"Tactical Monster",start_url:"/",display:"standalone",background_color:"#0D0D0F",theme_color:"#0D0D0F",orientation:"portrait"};
+    var b=new Blob([JSON.stringify(m)],{type:'application/json'});
+    var l=document.createElement('link');l.rel='manifest';l.href=URL.createObjectURL(b);document.head.appendChild(l);
+  })();
+  </script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useRef, useEffect, useMemo } = React;
+
+const LS = {
+  get:(k)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch{return null;}},
+  set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}},
+  has:(k)=>{try{return localStorage.getItem(k)!==null;}catch{return false;}},
+};
+
+(function persistenceGuard(){
+  const APP_VERSION = "v1";
+  const KEYS = {
+    "tm_log":{},
+    "tm_completed":{},
+    "tm_readiness":{},
+    "tm_cond":{},
+    "tm_bands":{},
+    "tm_cardio":[],
+    "tm_variants":{},
+    "tm_substitutions":{},
+    "tm_bodycomp":[],
+    "tm_week":1,
+    "tm_milestones":{totalSessions:0,lastMilestone:0},
+  };
+  Object.entries(KEYS).forEach(([k,defaultVal])=>{
+    if(!LS.has(k)) LS.set(k, defaultVal);
+  });
+  LS.set("tm_app_version", APP_VERSION);
+})();
+
+// ── COLOR SYSTEM — TACTICAL DARK / GUNMETAL ──────────────────────
+const C = {
+  bg:          "#0D0D0F",
+  surface:     "#1A1A1F",
+  surfaceMid:  "#222228",
+  surfaceHi:   "#2A2A35",
+  card:        "#111115",
+  cyan:        "#00D4FF",
+  cyanLight:   "rgba(0,212,255,0.12)",
+  cyanBorder:  "rgba(0,212,255,0.35)",
+  white:       "#FFFFFF",
+  offWhite:    "#C0C8D8",
+  textPrimary: "#FFFFFF",
+  textMid:     "#C0C8D8",
+  textMuted:   "#7A8499",
+  textFaint:   "#3D4455",
+  border:      "rgba(255,255,255,0.08)",
+  borderMid:   "rgba(255,255,255,0.16)",
+  green:       "#2ECC71",
+  greenLight:  "rgba(46,204,113,0.12)",
+  greenBorder: "rgba(46,204,113,0.35)",
+  gold:        "#FFC72C",
+  goldLight:   "rgba(255,199,44,0.12)",
+  goldBorder:  "rgba(255,199,44,0.35)",
+  red:         "#FF4444",
+  redLight:    "rgba(255,68,68,0.12)",
+  redBorder:   "rgba(255,68,68,0.35)",
+  orange:      "#FF8C42",
+  scarlet:     "#FF4444",
+  accent:      "#00D4FF",
+  blue:        "#00D4FF",
+  blueLight:   "rgba(0,212,255,0.12)",
+  blueBorder:  "rgba(0,212,255,0.35)",
+  // muscle map
+  muscleActive:   "#00D4FF",
+  muscleSecondary:"rgba(0,212,255,0.4)",
+  muscleInactive: "#2A2A32",
+  muscleSilhouette:"#1E1E26",
+  muscleStroke:   "#3A3A48",
+};
+
+// ── PHASE CONFIG ─────────────────────────────────────────────────
+const PHASES = [
+  {label:"Phase 1",weeks:"Weeks 1–2",focus:"Volume",     rpe:"6–7",sets:4,reps:"12–15",rir:"3–4 RIR",restNote:"60–75 sec", note:"High volume. Moderate load. Build work capacity.",   type:"volume"},
+  {label:"Phase 2",weeks:"Weeks 3–4",focus:"Strength",   rpe:"7–8",sets:5,reps:"5–8",  rir:"1–2 RIR",restNote:"120–180 sec",note:"Heavy compounds. Chase the number.",                type:"strength"},
+  {label:"Phase 3",weeks:"Weeks 5–6",focus:"Hypertrophy",rpe:"7–8",sets:4,reps:"8–12", rir:"2–3 RIR",restNote:"60–90 sec", note:"Time under tension. FST-7 finishers active.",         type:"hypertrophy"},
+  {label:"Phase 4",weeks:"Weeks 7–8",focus:"Deload",     rpe:"5–6",sets:3,reps:"10–12",rir:"3–4 RIR",restNote:"As needed", note:"60% load. Full recovery. Mandatory.",                 type:"deload"},
+];
+
+const VARIANT_LABELS = {
+  cable:          {label:"Cable",          color:"#2ECC71"},
+  cableRope:      {label:"Cable Rope",     color:"#27AE60"},
+  cableBar:       {label:"Cable Bar",      color:"#1E8449"},
+  cableEZBar:     {label:"Cable EZ Bar",   color:"#239B56"},
+  freeWeight:     {label:"Free Weight",    color:"#00D4FF"},
+  dumbbell:       {label:"Dumbbell",       color:"#0099BB"},
+  ezBar:          {label:"EZ Bar",         color:"#3498DB"},
+  straightBar:    {label:"Straight Bar",   color:"#2980B9"},
+  machine:        {label:"Machine",        color:"#9B59B6"},
+  hammerStrength: {label:"Hammer Strength",color:"#E67E22"},
+  isometric:      {label:"Isometric",      color:"#7F8C8D"},
+};
+
+function getPhaseIdxFromWeek(w){return Math.floor(((w-1)%8)/2);}
+function getPhase(w){
+  const idx=getPhaseIdxFromWeek(w);const p=PHASES[idx];const cycleNum=Math.ceil(w/8);
+  const colors=[[C.gold,C.goldLight,C.goldBorder],["#FF6B6B","rgba(255,107,107,0.12)","rgba(255,107,107,0.35)"],[C.cyan,C.cyanLight,C.cyanBorder],[C.green,C.greenLight,C.greenBorder]];
+  return{...p,cycleNum,color:colors[idx][0],colorBg:colors[idx][1],colorBorder:colors[idx][2]};
+}
+
+// ── READINESS ────────────────────────────────────────────────────
+function scoreReadiness(i){
+  const bb=parseFloat((i.bodyBattery/10).toFixed(1));
+  const ss=parseFloat((i.sleepScore/10).toFixed(1));
+  const tr=parseFloat((i.trainingReadiness/10).toFixed(1));
+  const hrv=({balanced:10,favorable:7,unbalanced:4,poor:1})[i.hrv]||5;
+  const hr=({at:10,"1-3":7,"4-6":4,"7+":1})[i.restingHR]||5;
+  const sor=parseFloat((10-i.soreness).toFixed(1));
+  const mot=parseFloat(i.motivation.toFixed(1));
+  return parseFloat((bb+ss+tr+hrv+hr+sor+mot).toFixed(1));
+}
+function getTier(s){
+  if(s>=56)return{tier:"GREEN", label:"PUSH",      color:C.green, bg:C.greenLight,note:"Train as programmed. Don't waste a green day."};
+  if(s>=42)return{tier:"YELLOW",label:"MODIFIED",  color:C.gold,  bg:C.goldLight, note:"Add 1 RIR all sets. No intensity techniques."};
+  if(s>=28)return{tier:"ORANGE",label:"REDUCE",    color:C.orange,bg:"rgba(255,140,66,0.12)",note:"Cut one set. Add 1–2 RIR. Skip conditioning."};
+  return      {tier:"RED",   label:"REST ONLY", color:C.red,   bg:C.redLight,  note:"Zone 2 only. Do not train."};
+}
+
+// ── PROGRESSION ──────────────────────────────────────────────────
+function parseRange(r){const m=r?r.match(/(\d+)[–\-](\d+)/):null;return m?{min:parseInt(m[1]),max:parseInt(m[2])}:{min:0,max:0};}
+function checkProgression(log,repRange){
+  const done=(log||[]).filter(s=>s&&s.reps&&s.weight);
+  if(!done.length)return false;
+  const{max}=parseRange(repRange);
+  return done.every(s=>parseInt(s.reps)>=max)&&parseInt(done[done.length-1].rir||0)>=1;
+}
+
+// ── WARM-UP CALC ─────────────────────────────────────────────────
+function feederCount(f){if(!f)return 0;if(f.includes("3"))return 3;if(f.includes("2"))return 2;if(f.includes("1"))return 1;return 0;}
+function calcWarmup(w,count){
+  const wt=parseFloat(w);if(!wt||isNaN(wt)||wt<=0)return null;
+  const s={3:[{pct:45,reps:"6–10"},{pct:65,reps:"4–6"},{pct:85,reps:"3–4"}],2:[{pct:50,reps:"6–10"},{pct:70,reps:"4–6"}],1:[{pct:60,reps:"6–10"}]};
+  return(s[count]||[]).map(x=>({...x,weight:Math.round(wt*x.pct/100/5)*5}));
+}
+
+function getPhaseRepRange(ex,phase){if(ex&&ex.reps)return ex.reps;return phase?phase.reps:"10–12";}
+function getPhaseSets(base,phaseType,ex,phaseSets){
+  if(ex&&ex.lockedSets!==undefined&&ex.lockedSets!==null)return ex.lockedSets;
+  if(phaseSets!=null)return phaseSets;
+  if(phaseType==="deload")return 2;
+  if(phaseType==="volume")return 4;
+  if(phaseType==="strength")return 5;
+  return 4;
+}
+function parseRestSeconds(rest){
+  if(!rest)return 90;
+  if(rest.includes("180")||rest.includes("3 min"))return 180;
+  if(rest.includes("120–180")||rest.includes("2–3"))return 150;
+  if(rest.includes("120"))return 120;
+  if(rest.includes("90"))return 90;
+  if(rest.includes("75"))return 75;
+  if(rest.includes("60–75"))return 67;
+  if(rest.includes("60"))return 60;
+  if(rest.includes("45"))return 45;
+  if(rest.includes("30"))return 30;
+  return 90;
+}
+
+// ── ESTIMATED 1RM (Epley) ────────────────────────────────────────
+function calc1RM(weight,reps){
+  if(!weight||!reps||reps<=0)return 0;
+  if(reps===1)return weight;
+  return Math.round(weight*(1+reps/30));
+}
+
+// ── BOMB DROP ────────────────────────────────────────────────────
+const activeTimers={};
+let globalFlashFn=null;
+function scheduleBombDrop(restSecs){
+  try{
+    const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
+    const ctx=new AC();if(ctx.state==="suspended")ctx.resume();
+    const t=ctx.currentTime;const ws=Math.max(0.1,restSecs-5);const ex=restSecs;
+    const w=ctx.createOscillator();const wg=ctx.createGain();
+    w.connect(wg);wg.connect(ctx.destination);w.type="sine";
+    w.frequency.setValueAtTime(1400,t+ws);w.frequency.exponentialRampToValueAtTime(60,t+ex-0.05);
+    wg.gain.setValueAtTime(0,t+ws);wg.gain.linearRampToValueAtTime(0.45,t+ws+2);wg.gain.linearRampToValueAtTime(0,t+ex);
+    w.start(t+ws);w.stop(t+ex+0.1);
+    const e=ctx.createOscillator();const eg=ctx.createGain();const ef=ctx.createBiquadFilter();
+    e.connect(ef);ef.connect(eg);eg.connect(ctx.destination);e.type="sawtooth";ef.type="lowpass";
+    ef.frequency.setValueAtTime(500,t+ex);ef.frequency.exponentialRampToValueAtTime(30,t+ex+0.7);
+    e.frequency.setValueAtTime(80,t+ex);e.frequency.exponentialRampToValueAtTime(15,t+ex+0.8);
+    eg.gain.setValueAtTime(0,t+ex-0.01);eg.gain.linearRampToValueAtTime(1,t+ex+0.04);eg.gain.exponentialRampToValueAtTime(0.001,t+ex+0.9);
+    e.start(t+ex-0.01);e.stop(t+ex+1);
+    const g=ctx.createOscillator();const gg=ctx.createGain();
+    g.connect(gg);gg.connect(ctx.destination);g.type="sine";
+    g.frequency.setValueAtTime(280,t+ex+0.7);g.frequency.exponentialRampToValueAtTime(1000,t+ex+1.2);
+    gg.gain.setValueAtTime(0,t+ex+0.65);gg.gain.linearRampToValueAtTime(0.6,t+ex+0.75);gg.gain.exponentialRampToValueAtTime(0.001,t+ex+1.4);
+    g.start(t+ex+0.65);g.stop(t+ex+1.5);
+    setTimeout(()=>{try{ctx.close();}catch(e){}}, (restSecs+3)*1000);
+  }catch(err){}
+}
+
+// ── REST TIMER ───────────────────────────────────────────────────
+function RestTimer({seconds,onDismiss}){
+  const[remaining,setRemaining]=useState(seconds);
+  const[done,setDone]=useState(false);
+  const[dismissed,setDismissed]=useState(false);
+  const ref=useRef(null);
+  useEffect(()=>{
+    ref.current=setInterval(()=>{
+      setRemaining(r=>{
+        if(r<=1){clearInterval(ref.current);setDone(true);
+          if(navigator.vibrate)navigator.vibrate([400,200,400,200,600]);
+          if(globalFlashFn)globalFlashFn();
+          setTimeout(()=>{setDismissed(true);if(onDismiss)onDismiss();},2500);
+          return 0;}
+        return r-1;});
+    },1000);
+    return()=>clearInterval(ref.current);
+  },[]);
+  if(dismissed)return null;
+  const pct=((seconds-remaining)/seconds)*100;
+  const mins=Math.floor(remaining/60);const secs=remaining%60;
+  const countdown=remaining<=5&&remaining>0&&!done;
+  return(
+    <div style={{background:done?C.greenLight:countdown?C.goldLight:C.cyanLight,border:`1px solid ${done?C.greenBorder:countdown?C.goldBorder:C.cyanBorder}`,borderLeft:`3px solid ${done?C.green:countdown?C.gold:C.cyan}`,borderRadius:"6px",padding:"12px 14px",marginTop:"10px",transition:"opacity 0.3s"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}}>
+        <div style={{fontSize:"11px",letterSpacing:"2px",color:done?C.green:countdown?C.gold:C.cyan,textTransform:"uppercase",fontWeight:"bold"}}>{done?"✓ GO — NEXT SET":countdown?"💣 INCOMING...":"REST TIMER"}</div>
+        <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+          <div style={{fontSize:countdown?"32px":"22px",fontWeight:"bold",color:done?C.green:countdown?"#FF4444":C.white,fontVariantNumeric:"tabular-nums"}}>{done?"💥":countdown?remaining:`${mins}:${secs.toString().padStart(2,"0")}`}</div>
+          {!done&&<button onClick={()=>{clearInterval(ref.current);setDismissed(true);if(onDismiss)onDismiss();}} style={{background:"transparent",border:"none",color:C.textFaint,fontSize:"18px",padding:"2px 6px",lineHeight:1}}>✕</button>}
+        </div>
+      </div>
+      <div style={{background:"rgba(255,255,255,0.06)",borderRadius:"2px",height:"4px",overflow:"hidden"}}>
+        <div style={{background:done?C.green:countdown?"#FF4444":C.cyan,height:"100%",width:`${pct}%`,transition:"width 1s linear",borderRadius:"2px"}}/>
+      </div>
+    </div>
+  );
+}
+
+// ── WARMUP CALC ──────────────────────────────────────────────────
+function WarmupCalc({feeders}){
+  const[w,setW]=useState("");
+  const count=feederCount(feeders);if(!count)return null;
+  const sets=calcWarmup(w,count);
+  return(
+    <div style={{background:`rgba(0,212,255,0.05)`,border:`1px solid ${C.cyanBorder}`,borderLeft:`3px solid ${C.cyan}`,borderRadius:"6px",padding:"14px",marginBottom:"14px"}}>
+      <div style={{fontSize:"11px",letterSpacing:"2px",color:C.cyan,textTransform:"uppercase",fontWeight:"bold",marginBottom:"10px"}}>Nippard Warm-Up Sets</div>
+      <input type="number" placeholder="Working weight (lbs)" value={w} onChange={e=>setW(e.target.value)} style={{marginBottom:"10px"}}/>
+      {sets?sets.map((s,i)=>(
+        <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:i<sets.length-1?`1px solid ${C.border}`:"none"}}>
+          <div style={{fontSize:"12px",color:C.textMuted,letterSpacing:"1px",textTransform:"uppercase"}}>Set {i+1} — {s.pct}%</div>
+          <div style={{display:"flex",gap:"16px",alignItems:"center"}}>
+            <div style={{fontSize:"20px",fontWeight:"bold",color:C.white}}>{s.weight}<span style={{fontSize:"12px",fontWeight:"normal",color:C.textMuted}}> lbs</span></div>
+            <div style={{fontSize:"13px",color:C.textMuted}}>{s.reps} reps</div>
+          </div>
+        </div>
+      )):<div style={{fontSize:"13px",color:C.textFaint,fontStyle:"italic"}}>Enter working weight to calculate.</div>}
+    </div>
+  );
+}
+
+// ── SET LOG ROW ──────────────────────────────────────────────────
+function SetLogRow({si,label,repRange,data,lastData,onLog,restSecs,exId,isNextSet,hideTimer,onTimerDone}){
+  const[tv,setTv]=useState(activeTimers[exId+"_"+si]||0);
+  const{max}=parseRange(repRange);
+  const isLogged=!!(data.weight&&data.reps);
+  function startTimer(){
+    if(hideTimer)return;
+    scheduleBombDrop(restSecs);
+    const v=(activeTimers[exId+"_"+si]||0)+1;activeTimers[exId+"_"+si]=v;setTv(v);
+  }
+  function handleDismiss(){setTv(0);if(onTimerDone)onTimerDone();}
+  const atMax=data.reps&&parseInt(data.reps)>=max&&max>0;
+  const rowBg=isNextSet&&!isLogged?C.cyanLight:"transparent";
+  const rowBorder=isNextSet&&!isLogged?`1.5px solid ${C.cyan}`:"1.5px solid transparent";
+  return(
+    <div style={{marginBottom:"8px",borderRadius:"6px",background:rowBg,border:rowBorder,padding:isNextSet&&!isLogged?"8px 6px":"0 6px",transition:"all 0.3s"}}>
+      <div style={{display:"flex",gap:"6px",alignItems:"center"}}>
+        <div style={{fontSize:"11px",color:isNextSet&&!isLogged?C.cyan:C.textMid,width:"50px",fontWeight:"bold",flexShrink:0,transition:"color 0.3s"}}>{label}</div>
+        <input type="number" placeholder={max>0?String(max):"lbs"} value={data.weight||""} onChange={e=>onLog(si,"weight",e.target.value)} style={{flex:1,minWidth:"60px",borderColor:isNextSet&&!isLogged?C.cyan:undefined}}/>
+        <input type="number" placeholder={max>0?repRange:"reps"} value={data.reps||""} onChange={e=>onLog(si,"reps",e.target.value)} style={{flex:1,minWidth:"60px",color:atMax?C.green:C.white,borderColor:isNextSet&&!isLogged?C.cyan:atMax?C.green:undefined}}/>
+        <input type="number" placeholder="RIR" value={data.rir||""} onChange={e=>onLog(si,"rir",e.target.value)} style={{flex:"0 0 56px",width:"56px",minWidth:"56px",color:data.rir!==undefined&&parseInt(data.rir)<=1?C.cyan:C.white}}/>
+        {isLogged&&!hideTimer&&(
+          <button onClick={startTimer} style={{background:tv>0?"transparent":C.cyan,border:`1px solid ${C.cyan}`,borderRadius:"6px",padding:"8px 10px",color:tv>0?C.cyan:C.bg,fontSize:"10px",fontWeight:"bold",letterSpacing:"1px",whiteSpace:"nowrap",flexShrink:0,minWidth:"60px"}}>▶ REST</button>
+        )}
+        {isLogged&&hideTimer&&<div style={{width:"60px",flexShrink:0}}/>}
+      </div>
+      {lastData&&lastData.weight&&(
+        <div style={{fontSize:"10px",color:C.textFaint,paddingLeft:"56px",marginTop:"2px"}}>Last: {lastData.weight}lb × {lastData.reps||"?"} reps</div>
+      )}
+      {tv>0&&<RestTimer key={tv} seconds={restSecs} onDismiss={handleDismiss}/>}
+    </div>
+  );
+}
+
+// ── BAND TRACKER ─────────────────────────────────────────────────
+const BANDS=["Light","Medium","Heavy","Extra Heavy","Mini Band"];
+function BandTracker({sessionKey,bandLog,onBandLog}){
+  const current=bandLog[sessionKey]||"";
+  return(
+    <div style={{background:"rgba(0,212,255,0.04)",border:`1px solid ${C.border}`,borderRadius:"8px",padding:"14px",marginBottom:"14px"}}>
+      <div style={{fontSize:"12px",letterSpacing:"2px",color:C.cyan,textTransform:"uppercase",fontWeight:"bold",marginBottom:"10px"}}>Band Used Today</div>
+      <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+        {BANDS.map(b=>(
+          <button key={b} onClick={()=>onBandLog(sessionKey,current===b?"":b)}
+            style={{padding:"8px 12px",background:current===b?C.cyan:"transparent",border:`1.5px solid ${current===b?C.cyan:C.borderMid}`,borderRadius:"6px",color:current===b?C.bg:C.textMid,fontSize:"12px",fontWeight:current===b?"bold":"normal"}}>
+            {b}
+          </button>
+        ))}
+      </div>
+      {current&&<div style={{fontSize:"12px",color:C.cyan,marginTop:"8px",fontWeight:"bold"}}>✓ {current} band logged</div>}
+    </div>
+  );
+}
+
+// ── VARIANT PICKER ───────────────────────────────────────────────
+function EquipBadge({type}){
+  const meta=VARIANT_LABELS[type]||{label:type,color:C.cyan};
+  return <span style={{fontSize:"10px",letterSpacing:"1px",color:"#fff",background:meta.color,padding:"2px 7px",borderRadius:"3px",fontWeight:"bold",flexShrink:0}}>{meta.label}</span>;
+}
+
+function VariantPicker({ex,side,currentVariant,onSelect,onClose}){
+  const variants=ex.variants||{};
+  const variantKeys=Object.keys(variants).filter(k=>variants[k]!==null);
+  return(
+    <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:C.bg,zIndex:200,overflowY:"auto",display:"flex",flexDirection:"column"}}>
+      <div style={{background:C.surfaceMid,borderBottom:`2px solid ${C.cyan}`,padding:"20px 18px",position:"sticky",top:0,zIndex:10,flexShrink:0}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+          <div>
+            <div style={{fontSize:"10px",letterSpacing:"3px",color:C.cyan,textTransform:"uppercase",fontWeight:"bold",marginBottom:"4px"}}>Swap Equipment</div>
+            <div style={{fontSize:"18px",fontWeight:"bold",color:C.white,lineHeight:1.2}}>{side==="b"?(ex.subName||ex.name):ex.name}</div>
+          </div>
+          <button onClick={onClose} style={{background:"transparent",border:`1.5px solid ${C.borderMid}`,borderRadius:"8px",padding:"10px 16px",color:C.textMid,fontSize:"13px",fontWeight:"bold",flexShrink:0,marginLeft:"12px"}}>✕ Close</button>
+        </div>
+      </div>
+      <div style={{padding:"20px 18px",flex:1}}>
+        <div style={{marginBottom:"16px"}}>
+          <button onClick={()=>onSelect(null)} style={{width:"100%",padding:"14px 16px",background:!currentVariant?C.cyanLight:"transparent",border:`1.5px solid ${!currentVariant?C.cyan:C.borderMid}`,borderRadius:"10px",color:!currentVariant?C.cyan:C.textMuted,fontSize:"13px",fontWeight:"bold",textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <div style={{fontSize:"15px",fontWeight:"bold",color:C.white}}>{ex.name}</div>
+              <div style={{fontSize:"11px",color:C.textMuted,marginTop:"2px"}}>Primary / Default</div>
+              {ex.note&&<div style={{fontSize:"12px",color:C.textMuted,marginTop:"4px",lineHeight:1.5}}>{ex.note}</div>}
+            </div>
+            {!currentVariant&&<span style={{color:C.cyan,fontSize:"16px",flexShrink:0,marginLeft:"10px"}}>✓</span>}
+          </button>
+        </div>
+        <div style={{fontSize:"11px",letterSpacing:"2px",color:C.textFaint,textTransform:"uppercase",fontWeight:"bold",marginBottom:"12px"}}>Equipment Options</div>
+        {variantKeys.length===0&&<div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"10px",padding:"20px",textAlign:"center",color:C.textMuted,fontSize:"14px"}}>No variants for this exercise.</div>}
+        {variantKeys.map(key=>{
+          const v=variants[key];const meta=VARIANT_LABELS[key]||{label:key,color:C.cyan};const isActive=currentVariant===key;
+          return(
+            <div key={key} onClick={()=>onSelect(key)}
+              style={{background:isActive?C.cyanLight:C.surface,border:`1.5px solid ${isActive?C.cyan:C.border}`,borderRadius:"10px",padding:"16px",marginBottom:"12px",cursor:"pointer"}}>
+              <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"8px",flexWrap:"wrap"}}>
+                <EquipBadge type={key}/>
+                <div style={{fontSize:"16px",fontWeight:"bold",color:C.white,flex:1}}>{v.name}</div>
+                {isActive&&<span style={{fontSize:"10px",letterSpacing:"1px",color:C.bg,background:C.cyan,padding:"2px 8px",borderRadius:"3px",fontWeight:"bold"}}>ACTIVE</span>}
+              </div>
+              <div style={{fontSize:"13px",color:C.textMid,lineHeight:1.6}}>{v.note}</div>
+              {!isActive&&<div style={{fontSize:"12px",color:C.cyan,fontWeight:"bold",marginTop:"8px"}}>Tap to select →</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── EXERCISE ROW ─────────────────────────────────────────────────
+function ExerciseRow({ex:origEx,week,phase,sessionLog,onLog,bandLog,onBandLog,variantSelections,onVariantSelect,onOpenPicker,onOpenReplace,substitution,onRevertSub,groupType,isLast}){
+  const[nextSetIdx,setNextSetIdx]=useState(null);
+  const[showDetail,setShowDetail]=useState(false);
+
+  // If this slot has a substitution, render the replacement movement but keep
+  // the original's id for slot identity. Replacement carries its own variants,
+  // muscles, spine flag, etc. Logs go to a substitute-tagged key (see logKeyA).
+  const isSub=!!substitution;
+  const subDef=isSub?ALL_EXERCISES.find(e=>e.id===substitution.subId):null;
+  const ex=subDef?{
+    ...subDef,
+    id:origEx.id,                       // keep slot identity
+    isSuperset:origEx.isSuperset,       // preserve grouping role
+    subName:origEx.subName,
+    lockedSets:origEx.lockedSets!==undefined?origEx.lockedSets:subDef.lockedSets,
+    reps:origEx.reps||subDef.reps,      // keep programmed rep target
+  }:origEx;
+
+  const variantKey=variantSelections[ex.id]||null;
+  const variantDef=variantKey&&ex.variants?ex.variants[variantKey]:null;
+  const displayName=variantDef?variantDef.name:ex.name;
+  const subLabel=ex.isSuperset?(ex.subName||ex.name):null;
+  const repRange=ex.reps||phase.reps||"10–12";
+  const numSets=getPhaseSets(null,phase.type,ex,phase.sets);
+  const restSecs=parseRestSeconds(ex.rest||phase.restNote||"90");
+  const isAMRAP=ex.lockedSets===0;
+  // Substitution logs to a distinct key so original data never collides
+  const logSuffix=isSub?("_sub_"+substitution.subId):"";
+  const logKeyA=ex.id+"_w"+week+"_a"+logSuffix;
+  const logKeyAPrev=ex.id+"_w"+(week-1)+"_a"+logSuffix;
+  const logA=sessionLog[logKeyA]||[];
+  const logAPrev=sessionLog[logKeyAPrev]||[];
+  function logSet(si,field,val){onLog(logKeyA,si,field,val);}
+  const prog=checkProgression(logA,repRange);
+
+  useEffect(()=>{
+    if(isAMRAP){setNextSetIdx(null);return;}
+    const firstEmpty=logA.findIndex((s,i)=>i<numSets&&!(s&&s.weight&&s.reps));
+    if(firstEmpty>=0&&firstEmpty<numSets)setNextSetIdx(firstEmpty);
+    else if(logA.length<numSets)setNextSetIdx(logA.length);
+    else setNextSetIdx(null);
+  },[logA,numSets]);
+
+  const showBandTracker=groupType==="standalone"&&(ex.name.toLowerCase().includes("band")||ex.name.toLowerCase().includes("face pull"));
+  const mb=isLast?0:12;
+
+  return(
+    <div style={{marginBottom:mb,padding:"14px 0",borderBottom:isLast?"none":`1px solid ${C.border}`}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"8px",flexWrap:"wrap",gap:"6px"}}>
+        <div style={{flex:1,minWidth:"180px"}}>
+          <div style={{fontSize:"16px",fontWeight:"bold",color:C.white,lineHeight:1.2}}>
+            {displayName}
+            {subLabel&&<span style={{fontSize:"12px",color:C.textFaint,fontWeight:"normal"}}> / {subLabel}</span>}
+          </div>
+          {variantDef&&<div style={{fontSize:"11px",color:C.textMuted,marginTop:"2px"}}>Variant of: {ex.name}</div>}
+          <div style={{fontSize:"12px",color:C.textMuted,marginTop:"4px",fontWeight:"500"}}>
+            {isAMRAP?"AMRAP":numSets===7?"7 sets — FST-7":`${numSets} × ${repRange}`}
+          </div>
+        </div>
+        <div style={{display:"flex",gap:"6px",flexShrink:0,flexWrap:"wrap",alignItems:"center"}}>
+          {prog&&<span style={{fontSize:"9px",letterSpacing:"1px",background:C.green,color:C.bg,padding:"3px 8px",borderRadius:"3px",fontWeight:"bold",whiteSpace:"nowrap"}}>↑ ADD WEIGHT</span>}
+          <button onClick={()=>setShowDetail(!showDetail)}
+            style={{background:"transparent",border:`1.5px solid ${C.borderMid}`,borderRadius:"6px",padding:"6px 10px",color:showDetail?C.cyan:C.textMuted,fontSize:"11px",fontWeight:"bold",letterSpacing:"1px",borderColor:showDetail?C.cyan:C.borderMid}}>
+            {showDetail?"▲ INFO":"▼ INFO"}
+          </button>
+          {ex.variants&&Object.keys(ex.variants).some(k=>ex.variants[k]!==null)&&(
+            <button onClick={()=>onOpenPicker(ex,null)}
+              style={{background:"transparent",border:`1.5px solid ${C.borderMid}`,borderRadius:"6px",padding:"6px 10px",color:C.textMuted,fontSize:"11px",fontWeight:"bold",letterSpacing:"1px",whiteSpace:"nowrap"}}>
+              {variantKey?"⇄ "+(VARIANT_LABELS[variantKey]||{}).label||variantKey:"⇄ Swap"}
+            </button>
+          )}
+          <button onClick={()=>onOpenReplace(origEx)}
+            style={{background:"transparent",border:`1.5px solid ${isSub?C.gold:C.borderMid}`,borderRadius:"6px",padding:"6px 10px",color:isSub?C.gold:C.textMuted,fontSize:"11px",fontWeight:"bold",letterSpacing:"1px",whiteSpace:"nowrap"}}>
+            ⤢ Replace
+          </button>
+        </div>
+      </div>
+
+      {isSub&&(
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.goldLight,border:`1px solid ${C.goldBorder}`,borderLeft:`3px solid ${C.gold}`,borderRadius:"4px",padding:"6px 10px",marginBottom:"10px"}}>
+          <div style={{fontSize:"11px",color:C.gold,lineHeight:1.4}}>↺ Replaced from <strong>{origEx.name}</strong></div>
+          <button onClick={()=>onRevertSub(origEx.id)} style={{background:"transparent",border:`1px solid ${C.goldBorder}`,borderRadius:"4px",padding:"4px 10px",color:C.gold,fontSize:"10px",fontWeight:"bold",letterSpacing:"1px",textTransform:"uppercase"}}>Revert</button>
+        </div>
+      )}
+
+      {showDetail&&(
+        <div style={{marginBottom:"12px"}}>
+          {ex.spineFlag&&(
+            <div style={{background:C.redLight,border:"1px solid rgba(255,68,68,0.3)",borderLeft:"3px solid #FF6B6B",borderRadius:"4px",padding:"8px 10px",marginBottom:"10px",fontSize:"11px",color:"#FF8C8C",lineHeight:1.5}}>
+              ⚠ {ex.spineFlag}
+            </div>
+          )}
+          {ex.formTip&&(
+            <div style={{background:C.cyanLight,border:`1px solid ${C.cyanBorder}`,borderLeft:`3px solid ${C.cyan}`,borderRadius:"4px",padding:"8px 10px",marginBottom:"10px",fontSize:"12px",color:C.textMid,lineHeight:1.5}}>
+              💡 {ex.formTip}
+            </div>
+          )}
+          {ex.note&&<div style={{fontSize:"12px",color:C.textMuted,lineHeight:1.6,marginBottom:"8px"}}>{ex.note}</div>}
+          {ex.steps&&(
+            <div style={{marginBottom:"8px"}}>
+              <div style={{fontSize:"10px",letterSpacing:"2px",color:C.textFaint,textTransform:"uppercase",fontWeight:"bold",marginBottom:"6px"}}>How To</div>
+              {ex.steps.map((step,i)=>(
+                <div key={i} style={{display:"flex",gap:"8px",marginBottom:"5px"}}>
+                  <div style={{fontSize:"11px",color:C.cyan,fontWeight:"bold",flexShrink:0,minWidth:"16px"}}>{i+1}.</div>
+                  <div style={{fontSize:"12px",color:C.textMuted,lineHeight:1.5}}>{step}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {ex.spineFlag&&!showDetail&&(
+        <div style={{background:C.redLight,border:"1px solid rgba(255,68,68,0.25)",borderLeft:"3px solid #FF6B6B",borderRadius:"4px",padding:"6px 10px",marginBottom:"8px",fontSize:"11px",color:"#FF8C8C",lineHeight:1.5}}>
+          ⚠ {ex.spineFlag}
+        </div>
+      )}
+
+      {numSets===7&&!isAMRAP&&(
+        <div style={{fontSize:"11px",color:C.gold,fontWeight:"bold",marginBottom:"10px",letterSpacing:"1px"}}>FST-7 — 45s rest between sets. Same weight all 7.</div>
+      )}
+
+      {!isAMRAP&&[...Array(numSets)].map((_,si)=>{
+        const data=logA[si]||{};const lastData=logAPrev[si]||null;const isNext=nextSetIdx===si;
+        return(
+          <SetLogRow key={si} si={si} label={`SET ${si+1}`} repRange={repRange} data={data} lastData={lastData}
+            onLog={(i,f,v)=>logSet(i,f,v)} restSecs={numSets===7?45:restSecs}
+            exId={ex.id} isNextSet={isNext} hideTimer={false}
+            onTimerDone={()=>setNextSetIdx(si+1<numSets?si+1:null)}/>
+        );
+      })}
+
+      {isAMRAP&&(
+        <div style={{marginTop:"8px"}}>
+          <div style={{fontSize:"12px",color:C.textMuted,letterSpacing:"1px",textTransform:"uppercase",fontWeight:"bold",marginBottom:"6px"}}>Rounds / Notes</div>
+          <textarea rows={2} placeholder="e.g. 4 rounds, RPE 7, 10 min total..."
+            value={logA[0]?.notes||""}
+            onChange={e=>logSet(0,"notes",e.target.value)}/>
+        </div>
+      )}
+      {showBandTracker&&<BandTracker sessionKey={ex.id+"_w"+week} bandLog={bandLog} onBandLog={onBandLog}/>}
+      {ex.feeders&&<WarmupCalc feeders={ex.feeders}/>}
+    </div>
+  );
+}
+
+// ── PROGRAM DATA ─────────────────────────────────────────────────
+const PROGRAM = [
+  {
+    day:"MON",label:"Full Body Strength",tag:"Lower Focus",color:C.gold,
+    warmup:[
+      {item:"Bike or Row Erg",equipment:"MACHINE",notes:"5 min easy. Nasal breathing only."},
+      {item:"Hip Flexor Stretch",equipment:"BODYWEIGHT",notes:"30 sec each side. L3-S1 prep."},
+      {item:"Band Pull-Apart",equipment:"BAND",notes:"2 × 20. MANDATORY every session."},
+      {item:"Face Pull",equipment:"CABLE",notes:"2 × 20, light cable. MANDATORY every session."},
+    ],
+    groups:[
+      {type:"standalone",label:"1",exercises:[
+        {id:"mon_01",name:"Barbell RDL",reps:"10–12",lockedSets:null,
+          difficulty:3,
+          formTip:"Keep the bar in contact with your legs the entire way down. Hinge, don't squat.",
+          steps:["Stand with bar over mid-foot, hip-width stance","Hinge at hips, soft knee bend, bar drags down legs","Lower until hamstring tension stops forward lean","Drive hips forward to return to standing"],
+          primaryMuscles:["hamstrings","glutes"],secondaryMuscles:["lowerBack","forearms"],
+          note:"RPE 6–7. Stop at lumbar fatigue. Hip hinge, soft knee, bar stays close to body.",
+          spineFlag:"L3-S1: Hard cap RPE 6–7. Any lumbar fatigue = stop signal. Switch to cable pull-through.",
+          variants:{
+            cableRope:{name:"Cable Pull-Through (Rope)",note:"Rope attachment for better hip hinge feel."},
+            dumbbell:{name:"DB RDL",note:"Dumbbells allow neutral grip. Same cues as barbell."},
+            machine:{name:"Lying Leg Curl",note:"Closest hamstring equivalent if RDL unavailable."},
+            hammerStrength:{name:"Hammer Strength Lying Leg Curl",note:"Plate-loaded. Full ROM hamstring isolation."}}},
+      ]},
+      {type:"standalone",label:"2",exercises:[
+        {id:"mon_02",name:"Leg Press",reps:"10–12",lockedSets:null,
+          difficulty:2,
+          formTip:"Keep lumbar flat against pad throughout. Feet mid-platform. Don't lock out knees.",
+          steps:["Set feet mid-platform, shoulder-width","Unrack and lower slowly to 90° knee angle","Lumbar stays flush to pad at all times","Press through heels to starting position"],
+          primaryMuscles:["quads","glutes"],secondaryMuscles:["hamstrings","calves"],
+          note:"Full ROM. Controlled descent. Lumbar stays flat on pad.",
+          spineFlag:"L3-S1: Lumbar must stay in contact with pad. Stop depth where lower back rounds.",
+          variants:{
+            dumbbell:{name:"DB Goblet Squat",note:"Hold DB at chest. Upright torso."},
+            machine:{name:"Leg Press (Selectorized)",note:"Same movement, selectorized stack."},
+            hammerStrength:{name:"Hammer Strength Leg Press",note:"Plate-loaded. Slightly more natural arc."}}},
+      ]},
+      {type:"standalone",label:"3",exercises:[
+        {id:"mon_03",name:"Bulgarian Split Squat (DB)",reps:"10 ea.",lockedSets:null,
+          difficulty:3,
+          formTip:"Torso stays upright throughout. Drive through front heel, not toes.",
+          steps:["Rear foot elevated on bench, front foot stepped far forward","Hold DBs at sides, torso tall","Lower rear knee toward floor — front shin stays vertical","Drive through front heel to stand"],
+          primaryMuscles:["quads","glutes"],secondaryMuscles:["hamstrings","calves"],
+          note:"Rear foot elevated. Torso upright. Drive through front heel. DBs only.",
+          spineFlag:"L3-S1: Torso upright throughout. No forward lean. DBs only — no barbell.",
+          variants:{
+            cable:{name:"Cable Bulgarian Split Squat",note:"Low pulley, ipsilateral hand. Adds anti-rotation demand."},
+            dumbbell:{name:"DB Bulgarian Split Squat",note:"Hold DBs at sides, arms straight down."},
+            machine:{name:"Smith Machine Split Squat",note:"Fixed bar path. Good if balance is limiting."},
+            hammerStrength:{name:"Hammer Strength Single-Leg Press",note:"Plate-loaded unilateral. Same quad stimulus, lower injury risk."}}},
+      ]},
+      {type:"superset",label:"A",groupNote:"Antagonist push/pull. No rest between A1 and A2. 90s after completing both.",exercises:[
+        {id:"mon_04a",name:"Seated Cable Row",reps:"12",lockedSets:null,
+          difficulty:2,
+          formTip:"Initiate with scapular retraction, not biceps. Full stretch at front every rep.",
+          steps:["Sit upright, grab neutral grip handle","Pull to lower sternum, drive elbows back","Squeeze scapulae at peak, pause 1 second","Return with full stretch — no rounding forward"],
+          primaryMuscles:["lats","traps"],secondaryMuscles:["biceps","rearDelt"],
+          note:"Neutral grip. Drive elbows back. Squeeze at peak. Full stretch at front.",
+          variants:{
+            cableBar:{name:"Seated Cable Row (Bar)",note:"Straight bar. Wider grip, more upper back."},
+            dumbbell:{name:"DB Chest-Supported Row",note:"Incline bench, chest down. Full ROM each side."},
+            machine:{name:"Machine Seated Row",note:"Fixed path. Good for isolation."},
+            hammerStrength:{name:"Hammer Strength Iso-Lateral Row",note:"Plate-loaded. Each arm independent."}}},
+        {id:"mon_04b",name:"Incline DB Press",reps:"10–12",lockedSets:null,isSuperset:true,subName:"Incline DB Press",
+          difficulty:2,
+          formTip:"2-second eccentric. Full stretch at bottom — elbows below bench level if mobility allows.",
+          steps:["Set bench 30–45°, DB at shoulder height","Lower with control, elbows at 45° to torso","Full stretch at bottom, pause briefly","Press to lockout, squeeze at top"],
+          primaryMuscles:["chest","frontDelt"],secondaryMuscles:["triceps"],
+          note:"30–45° angle. Full stretch at bottom. 2-sec eccentric.",
+          variants:{
+            cable:{name:"Low-to-High Cable Press",note:"Cables set low. Press up and forward. Constant tension."},
+            cableBar:{name:"Cable Incline Press (Bar)",note:"Low pulley, incline bench angle."},
+            dumbbell:{name:"Incline DB Press",note:"Default. Best for ROM and shoulder safety."},
+            machine:{name:"Incline Machine Press",note:"Safe to push to failure."},
+            hammerStrength:{name:"Hammer Strength Incline Press",note:"Plate-loaded. Converging path. Best upper chest stimulus."}}},
+      ]},
+      {type:"standalone",label:"4",exercises:[
+        {id:"mon_05",name:"Leg Curl (Machine)",reps:"12–15",lockedSets:null,
+          difficulty:1,
+          formTip:"Dorsiflexed foot (toes pulled up) adds hamstring stretch. Pause at peak contraction.",
+          steps:["Lie prone or sit (depends on machine)","Foot dorsiflexed throughout","Curl to full contraction, pause 1 second","Lower with 2-sec eccentric"],
+          primaryMuscles:["hamstrings"],secondaryMuscles:["calves"],
+          note:"Full ROM. Pause at peak. Foot dorsiflexed.",
+          variants:{
+            cableRope:{name:"Cable Leg Curl (Ankle Cuff)",note:"Low pulley, ankle cuff. Full ROM single leg."},
+            dumbbell:{name:"DB Leg Curl (Lying)",note:"Prone, DB between feet. Slow eccentric."},
+            machine:{name:"Seated or Lying Leg Curl",note:"Default."},
+            hammerStrength:{name:"Hammer Strength Lying Leg Curl",note:"Plate-loaded. Excellent ROM."}}},
+      ]},
+      {type:"standalone",label:"5",exercises:[
+        {id:"mon_06",name:"Face Pulls (Cable)",reps:"15–20",lockedSets:null,
+          difficulty:1,
+          formTip:"Elbows must flare HIGH — above shoulder level. This is a rotator cuff exercise, not a row.",
+          steps:["Rope at eye/forehead level, high pulley","Pull rope to forehead, elbows flare up and out","External rotate at end range — thumbs behind head","Return with control — no jerking"],
+          primaryMuscles:["rearDelt","traps"],secondaryMuscles:["forearms"],
+          note:"Rope at eye level. Elbows flare up. External rotation at end range. Non-negotiable.",
+          variants:{
+            cableRope:{name:"Cable Face Pull (Rope)",note:"Default. Rope for best external rotation."},
+            freeWeight:{name:"Band Face Pull",note:"Anchored at face height. Same pattern."},
+            machine:{name:"Rear Delt Machine Fly",note:"Closest machine substitute."},
+            hammerStrength:{name:"Hammer Strength Rear Delt",note:"Plate-loaded rear delt."}}},
+      ]},
+    ],
+    finisher:null,conditioning:null,
+    cooldown:"Hip flexor stretch 60 sec per side. Hamstring stretch. Light walk 2 min.",
+  },
+  {
+    day:"TUE",label:"Mixed Conditioning",tag:"Metabolic",color:"#FF6B6B",
+    warmup:[
+      {item:"Row Erg or Assault Bike",equipment:"MACHINE",notes:"5 min easy. Nasal breathing only."},
+      {item:"Band Pull-Apart",equipment:"BAND",notes:"2 × 20. MANDATORY."},
+      {item:"Face Pull",equipment:"CABLE",notes:"2 × 20. MANDATORY."},
+    ],
+    groups:[
+      {type:"standalone",label:"1",exercises:[
+        {id:"tue_01",name:"Assault Bike Intervals",reps:"20s on / 40s off",lockedSets:7,
+          difficulty:4,
+          formTip:"Max effort on work intervals. Nasal exhale only during rest.",
+          steps:["Set bike resistance to moderate","20 seconds absolute max effort","40 seconds complete rest — stop pedaling","Track RPM each interval — chase the number"],
+          primaryMuscles:["quads","hamstrings"],secondaryMuscles:["glutes","calves"],
+          note:"Max effort on work intervals. Track RPM each round. 7 intervals total.",
+          variants:{
+            machine:{name:"Rower Intervals",note:"Same 20s/40s protocol. Damper at 5–6."},
+          }},
+      ]},
+      {type:"standalone",label:"2",exercises:[
+        {id:"tue_02",name:"Sled Push",reps:"40 yds",lockedSets:null,
+          difficulty:4,
+          formTip:"Low body position. Drive through balls of feet. Arms almost fully extended.",
+          steps:["Load sled to moderate weight","Low athletic position, hands on uprights","Drive hard through each step — short powerful strides","Walk back for recovery between sets"],
+          primaryMuscles:["quads","glutes"],secondaryMuscles:["hamstrings","calves"],
+          note:"Loaded sprint. Drive through balls of feet. Low body position.",
+          spineFlag:"T9-T11: Moderate load only. No maximal sled loading.",
+          variants:{
+            freeWeight:{name:"KB Farmer Carry",note:"Heavy. 40 yds per set. Grip and posture."},
+            dumbbell:{name:"DB Farmer Carry",note:"Heavy DBs. 40 yds, posture tall."},
+          }},
+      ]},
+      {type:"standalone",label:"3",exercises:[
+        {id:"tue_03",name:"Med Ball Slam",reps:"12",lockedSets:null,
+          difficulty:3,
+          formTip:"Full overhead extension on the way up. Violent contraction down. Catch or let bounce.",
+          steps:["Stand with feet shoulder-width, ball overhead","Full extension — reach tall","Slam violently downward, core braces on impact","Catch on bounce or pick up"],
+          primaryMuscles:["abs","lats"],secondaryMuscles:["traps","frontDelt"],
+          note:"Full overhead extension. Violent contraction down. Core braced throughout.",
+          variants:{
+            cableRope:{name:"Cable Crunch (Rope)",note:"Rope attachment, kneeling. Core flexion pattern."},
+            freeWeight:{name:"Med Ball Slam",note:"Default. 20–30 lb ball."}}},
+      ]},
+      {type:"giant",label:"A",groupNote:"10 min AMRAP — A1 → A2 → A3 circuit. No rest between movements. Log rounds.",exercises:[
+        {id:"tue_04a",name:"KB Swing (Russian)",reps:"10",lockedSets:0,
+          difficulty:3,
+          formTip:"This is a HIP HINGE, not a squat. The KB should float at chest height from hip drive alone.",
+          steps:["Hike KB back between legs","Snap hips forward explosively","KB floats to chest height — arms are a guide only","Let it swing back between legs and repeat"],
+          primaryMuscles:["glutes","hamstrings"],secondaryMuscles:["lowerBack","traps"],
+          note:"AMRAP circuit. Hip hinge pattern. Stop if lower back fatigues.",
+          spineFlag:"L3-S1: Hip hinge pattern — never squat the swing. Stop if lower back fatigues.",
+          variants:{
+            cableRope:{name:"Cable Pull-Through (Rope)",note:"Rope attachment. Hip hinge loaded."},
+            freeWeight:{name:"KB Swing",note:"Default."},
+            dumbbell:{name:"DB Swing",note:"Single DB, both hands. Same hip drive pattern."}}},
+        {id:"tue_04b",name:"Box Step-Up",reps:"10 ea.",lockedSets:0,
+          difficulty:2,
+          formTip:"Drive through heel of front foot. Full hip extension at top. Don't push off back foot.",
+          steps:["Step onto box with one foot, heel fully on box","Drive through front heel to stand tall","Full hip extension at top — glute squeeze","Control step down"],
+          primaryMuscles:["quads","glutes"],secondaryMuscles:["hamstrings"],
+          note:"AMRAP circuit. Drive through heel. Full hip extension at top.",
+          variants:{
+            dumbbell:{name:"DB Step-Up",note:"Hold DBs at sides for added resistance."},
+            machine:{name:"Stair Climber",note:"2 min per round substitute."}}},
+        {id:"tue_04c",name:"Push-Up",reps:"15",lockedSets:0,
+          difficulty:2,
+          formTip:"Body is a rigid plank. Chest touches floor. Full lockout at top.",
+          steps:["Hands shoulder-width, body rigid plank","Lower chest to floor — elbows at 45°","Full lockout at top","Keep core braced throughout"],
+          primaryMuscles:["chest","triceps"],secondaryMuscles:["frontDelt","abs"],
+          note:"AMRAP circuit. Chest to floor. Full lockout. Core tight.",
+          variants:{
+            cable:{name:"Cable Press-Down (Kneeling)",note:"High pulley. Mimics push pattern."},
+            machine:{name:"Machine Chest Press",note:"Light, high rep. Fatigue finisher."},
+            hammerStrength:{name:"Hammer Strength Chest Press",note:"Plate-loaded. Adjust to AMRAP pace."},
+          }},
+      ]},
+    ],
+    finisher:null,conditioning:null,
+    cooldown:"5 min easy walk. Full body stretch. HR below 120 before leaving.",
+  },
+  {
+    day:"WED",label:"Push / Pull Upper",tag:"FST-7 Day",color:C.gold,
+    warmup:[
+      {item:"Bike or Row Erg",equipment:"MACHINE",notes:"5 min easy."},
+      {item:"Band Pull-Apart",equipment:"BAND",notes:"2 × 20. MANDATORY."},
+      {item:"Face Pull",equipment:"CABLE",notes:"2 × 20. MANDATORY."},
+      {item:"Band Shoulder Dislocates",equipment:"BAND",notes:"10 slow passes. C6-C7 prep."},
+    ],
+    groups:[
+      {type:"standalone",label:"1",exercises:[
+        {id:"wed_01",name:"Incline DB Press",reps:"10–12",lockedSets:null,
+          difficulty:2,
+          formTip:"2-second eccentric. Elbows at 45°, not flared. Full stretch at bottom.",
+          steps:["Set bench 30–45°","Lower DBs with control — elbows at 45°","Full stretch at bottom, feel upper chest","Press to lockout, squeeze at top"],
+          primaryMuscles:["chest","frontDelt"],secondaryMuscles:["triceps"],
+          note:"Primary push. 30–45° angle. Full stretch at bottom. 2-sec eccentric.",
+          variants:{
+            cable:{name:"High-to-Low Cable Press",note:"Cables set high. Press down and forward. Upper chest stretch."},
+            cableBar:{name:"Cable Incline Press (Bar)",note:"Low cable, incline angle. Bar attachment."},
+            dumbbell:{name:"Incline DB Press",note:"Default. Best shoulder-safe pressing option."},
+            machine:{name:"Incline Machine Press",note:"Safe to failure."},
+            hammerStrength:{name:"Hammer Strength Incline Press",note:"Plate-loaded. Converging path. Best upper chest."}}},
+      ]},
+      {type:"standalone",label:"2",exercises:[
+        {id:"wed_02",name:"Lat Pulldown (Wide Grip)",reps:"10–12",lockedSets:null,
+          difficulty:2,
+          formTip:"Initiate with lats, not biceps. Think 'elbows to your back pockets.'",
+          steps:["Wide pronated grip, slight lean back","Pull bar to upper chest — lead with elbows","Squeeze lats at bottom, pause 1 second","Full stretch at top — feel lat lengthening"],
+          primaryMuscles:["lats"],secondaryMuscles:["biceps","rearDelt"],
+          note:"Initiate with lats. Slight lean back. Pull to upper chest. Full stretch at top.",
+          spineFlag:"C6-C7: Monitor shoulder. Revert to neutral grip at any cervical symptoms.",
+          variants:{
+            cable:{name:"Cable Lat Pulldown",note:"Default. Wide pronated grip."},
+            cableBar:{name:"Lat Pulldown (Straight Bar)",note:"Straight bar, wide grip. Same lat stimulus."},
+            cableEZBar:{name:"Lat Pulldown (EZ Bar)",note:"EZ bar attachment. Easier on wrists."},
+            dumbbell:{name:"DB Pullover",note:"Single DB both hands. Long head stretch."},
+            machine:{name:"Lat Pulldown Machine",note:"Selectorized. Same movement."},
+            hammerStrength:{name:"Hammer Strength Lat Pulldown",note:"Plate-loaded. Excellent lat width builder."}}},
+      ]},
+      {type:"superset",label:"A",groupNote:"Isolation pair. No rest A1→A2. 75s after both.",exercises:[
+        {id:"wed_03a",name:"Cable Fly",reps:"12–15",lockedSets:null,
+          difficulty:2,
+          formTip:"Think 'hugging a barrel.' Slight elbow bend locked in. Squeeze at center.",
+          steps:["Set pulleys above shoulder height","Step forward, slight hinge at hips","Sweep arms forward in wide arc — elbows soft","Squeeze at center, slow return"],
+          primaryMuscles:["chest"],secondaryMuscles:["frontDelt"],
+          note:"Pulleys high for mid-chest. Full stretch at arms-wide. Squeeze at center.",
+          spineFlag:"T9-T11: Stop before full adduction. Never fully lock out at center.",
+          variants:{
+            cable:{name:"Cable Crossover",note:"Default."},
+            cableRope:{name:"Cable Fly (Rope Handles)",note:"Rope handles for greater wrist comfort."},
+            dumbbell:{name:"DB Fly",note:"Flat or incline. Slow eccentric, slight elbow bend."},
+            machine:{name:"Pec Deck (Light)",note:"Keep RPE under 6. T9-T11 constraint."},
+            hammerStrength:{name:"Hammer Strength Seated Chest Fly",note:"Keep weight moderate."}}},
+        {id:"wed_03b",name:"Lateral Raise",reps:"15–20",lockedSets:null,isSuperset:true,subName:"Lateral Raise",
+          difficulty:1,
+          formTip:"Pinky slightly higher than thumb at top. Slight forward lean. Lead with elbows.",
+          steps:["Stand slight forward lean, soft elbow bend","Raise arms laterally to shoulder height","Pinky higher than thumb at top","Lower with 3-sec eccentric — most of the stimulus is here"],
+          primaryMuscles:["frontDelt"],secondaryMuscles:["traps"],
+          note:"Controlled. No momentum. Slight forward lean. Pinky slightly higher at top.",
+          variants:{
+            cableBar:{name:"Cable Lateral Raise (Bar)",note:"Short bar, low pulley. Bilateral option."},
+            dumbbell:{name:"DB Lateral Raise",note:"Default. Slow eccentric is the stimulus."},
+            machine:{name:"Lateral Raise Machine",note:"Good for strict form and isolation."}}},
+      ]},
+      {type:"superset",label:"B",groupNote:"Antagonist pull pair. No rest B1→B2. 90s after both.",exercises:[
+        {id:"wed_04a",name:"Seated Cable Row (Close Grip)",reps:"12",lockedSets:null,
+          difficulty:2,
+          formTip:"Drive scapula back at peak. Elbows tight to body. Full stretch at front.",
+          steps:["V-bar or neutral grip, sit tall","Row to lower sternum, elbows tight","Drive scapulae back at peak, pause","Return with full stretch — no rounding"],
+          primaryMuscles:["lats","traps"],secondaryMuscles:["biceps","rearDelt"],
+          note:"V-bar or neutral grip. Elbows tight. Drive scapula back. Full stretch.",
+          variants:{
+            cableBar:{name:"Seated Cable Row (Bar)",note:"Straight bar. Wider grip, more upper back."},
+            dumbbell:{name:"DB Chest-Supported Row",note:"Incline bench. Full ROM each arm."},
+            machine:{name:"Seated Row Machine",note:"Selectorized."},
+            hammerStrength:{name:"Hammer Strength Iso-Lateral Row",note:"Plate-loaded. Each arm independent."}}},
+        {id:"wed_04b",name:"Rear Delt Fly",reps:"15",lockedSets:null,isSuperset:true,subName:"Rear Delt Fly",
+          difficulty:1,
+          formTip:"Light weight. Full arc. If you're feeling it in your traps, lower the weight.",
+          steps:["Hinge forward or use chest-supported bench","Arms wide, slight elbow bend","Raise in wide arc to shoulder height","Squeeze rear delts at peak, slow return"],
+          primaryMuscles:["rearDelt","traps"],secondaryMuscles:["lats"],
+          note:"Light weight. Full arc. Squeeze at peak. Two rear delt sessions per week is structural.",
+          variants:{
+            cable:{name:"Cable Rear Delt Fly",note:"Both cables crossed at face height."},
+            cableRope:{name:"Cable Rear Delt (Rope)",note:"Single rope, pull apart at face height."},
+            dumbbell:{name:"DB Rear Delt Fly",note:"Bent over or chest-supported. Light, full arc."},
+            machine:{name:"Rear Delt Machine Fly",note:"Flip around on pec deck."},
+            hammerStrength:{name:"Hammer Strength Rear Delt",note:"Plate-loaded reverse fly."}}},
+      ]},
+      {type:"standalone",label:"3",exercises:[
+        {id:"wed_05",name:"Cable Fly — FST-7",reps:"12–15",lockedSets:7,
+          difficulty:3,
+          formTip:"Same weight all 7 sets. Go deeper into the stretch each set. 45s rest, no more.",
+          steps:["Set cables high, step forward","45s rest timer after each set — start it immediately","Same weight entire protocol","Focus on stretch, not contraction — this is fascial work"],
+          primaryMuscles:["chest"],secondaryMuscles:["frontDelt"],
+          note:"45s rest between sets. Same weight all 7. Full stretch every rep. Hany Rambod FST-7.",
+          spineFlag:"T9-T11: Stop before full adduction. Never lock out at center.",
+          variants:{
+            cable:{name:"Cable Crossover Fly",note:"Default FST-7 finisher."},
+            cableRope:{name:"Cable Fly (Rope Handles)",note:"Rope handles for wrist comfort."},
+            dumbbell:{name:"DB Fly (FST-7)",note:"Flat bench. Same 45s rest protocol."},
+            machine:{name:"Chest Press Machine",note:"Light, full ROM, 7 sets."},
+            hammerStrength:{name:"Hammer Strength Chest Press (Feeder)",note:"Strip to 25% 1RM. Pump focus."}}},
+      ]},
+    ],
+    finisher:null,conditioning:null,
+    cooldown:"Band pull-aparts × 20. Chest and shoulder stretch 60 sec per side.",
+  },
+  {
+    day:"THU",label:"Full Body Accessory",tag:"Stability / Volume",color:C.gold,
+    warmup:[
+      {item:"Bike or Row Erg",equipment:"MACHINE",notes:"5 min easy."},
+      {item:"Band Pull-Apart",equipment:"BAND",notes:"2 × 20. MANDATORY."},
+      {item:"Face Pull",equipment:"CABLE",notes:"2 × 20. MANDATORY."},
+      {item:"Hip Flexor Stretch",equipment:"BODYWEIGHT",notes:"30 sec each side. Lower body prep."},
+    ],
+    groups:[
+      {type:"standalone",label:"1",exercises:[
+        {id:"thu_01",name:"Single-Leg Press",reps:"12 ea.",lockedSets:null,
+          difficulty:2,
+          formTip:"Lumbar stays flat. Full ROM. No knee lockout at top.",
+          steps:["Load to moderate weight — less than bilateral","One foot mid-platform, other leg off","Lower controlled to 90°, lumbar flat throughout","Press through heel to near-lockout"],
+          primaryMuscles:["quads","glutes"],secondaryMuscles:["hamstrings"],
+          note:"Controlled descent. No knee lockout. Lumbar flat on pad.",
+          spineFlag:"L3-S1: Lumbar stays flat on pad throughout. Stop depth where back rounds.",
+          variants:{
+            dumbbell:{name:"DB Reverse Lunge",note:"Hold DBs at sides. Step back controlled."},
+            machine:{name:"Single-Leg Press (Selectorized)",note:"Default."},
+            hammerStrength:{name:"Hammer Strength Single-Leg Press",note:"Plate-loaded. More natural arc."}}},
+      ]},
+      {type:"superset",label:"A",groupNote:"Quad/hamstring antagonist. No rest A1→A2. 90s after both.",exercises:[
+        {id:"thu_02a",name:"Leg Extension (Machine)",reps:"15",lockedSets:null,
+          difficulty:1,
+          formTip:"Full extension — pause 1 second at top. Slow 2-sec eccentric. Don't hyperextend.",
+          steps:["Seat adjusted so knee aligns with machine pivot","Full extension, pause 1s","2-second controlled lowering","Keep foot dorsiflexed throughout"],
+          primaryMuscles:["quads"],secondaryMuscles:["innerQuad"],
+          note:"Full extension. Pause 1s at top. 2-sec eccentric.",
+          variants:{
+            cableRope:{name:"Cable Leg Extension (Ankle Cuff)",note:"Ankle cuff, single leg extension."},
+            dumbbell:{name:"DB Sissy Squat",note:"Light DB at chest. Lean back, knees forward."},
+            machine:{name:"Leg Extension Machine",note:"Default."},
+            hammerStrength:{name:"Hammer Strength Leg Extension",note:"Plate-loaded."}}},
+        {id:"thu_02b",name:"Leg Curl (Machine)",reps:"15",lockedSets:null,isSuperset:true,subName:"Leg Curl",
+          difficulty:1,
+          formTip:"Foot dorsiflexed. Pause at peak contraction. Slow eccentric.",
+          steps:["Lie prone or sit depending on machine","Foot dorsiflexed throughout","Curl to full contraction, pause 1s","Lower with 2-sec controlled eccentric"],
+          primaryMuscles:["hamstrings"],secondaryMuscles:["calves"],
+          note:"Full ROM. Pause at peak. Foot dorsiflexed.",
+          variants:{
+            cableRope:{name:"Cable Leg Curl (Ankle Cuff)",note:"Single leg, full ROM."},
+            freeWeight:{name:"Swiss Ball Leg Curl",note:"Feet on ball, hips up. Full hamstring."},
+            dumbbell:{name:"DB Leg Curl",note:"Prone, DB between feet. Slow eccentric."},
+            machine:{name:"Seated or Lying Leg Curl",note:"Default."},
+            hammerStrength:{name:"Hammer Strength Lying Leg Curl",note:"Plate-loaded."}}},
+      ]},
+      {type:"standalone",label:"2",exercises:[
+        {id:"thu_03",name:"Cable Pullover",reps:"12–15",lockedSets:null,
+          difficulty:2,
+          formTip:"Arms soft — slight elbow bend locked in. Feel the lat stretch at top of arc.",
+          steps:["High pulley, rope or bar attachment","Stand or kneel facing cable stack","Pull through arc from overhead to hips","Feel lat and serratus stretch at top"],
+          primaryMuscles:["lats"],secondaryMuscles:["traps","chest"],
+          note:"High pulley. Slight elbow bend. Long head lat stretch. Pull through hip.",
+          variants:{
+            cableRope:{name:"Cable Pullover (Rope)",note:"Rope attachment. Better lat feel."},
+            cableBar:{name:"Cable Pullover (Bar)",note:"Straight bar. More stable."},
+            dumbbell:{name:"DB Pullover",note:"Single DB, both hands. Long head lat stretch."},
+            machine:{name:"Machine Pullover (Nautilus)",note:"Best machine option if available."},
+            hammerStrength:{name:"Hammer Strength Pullover",note:"Plate-loaded. Excellent lat and serratus."}}},
+      ]},
+      {type:"standalone",label:"3",exercises:[
+        {id:"thu_04",name:"DB Incline Row",reps:"12 ea.",lockedSets:null,
+          difficulty:2,
+          formTip:"Chest fully on pad — this eliminates all lumbar involvement. Drive elbow straight back.",
+          steps:["Set bench to 45°, lie chest-down","DB in one hand, other arm can hold bench","Drive elbow straight back — not out","Full stretch at bottom, squeeze at top"],
+          primaryMuscles:["lats","traps"],secondaryMuscles:["biceps","rearDelt"],
+          note:"Chest supported. No spinal loading. Drive elbow straight back. Full stretch.",
+          spineFlag:"L3-S1: Chest fully supported on incline pad. No lumbar involvement.",
+          variants:{
+            cableBar:{name:"Single-Arm Cable Row",note:"D-handle. Seated or standing."},
+            dumbbell:{name:"DB Incline Row",note:"Default. Chest supported on incline bench."},
+            machine:{name:"Chest-Supported Row Machine",note:"Chest pad eliminates back involvement."},
+            hammerStrength:{name:"Hammer Strength Iso-Lateral Row",note:"Chest-supported variant if available."}}},
+      ]},
+      {type:"standalone",label:"4",exercises:[
+        {id:"thu_05",name:"Cable Chest Fly (Low-to-High)",reps:"15",lockedSets:null,
+          difficulty:2,
+          formTip:"Pulleys LOW. Press up and across. Upper chest emphasis. Full stretch at bottom.",
+          steps:["Set pulleys at hip/low height","Step forward, slight hinge","Press up and across in arc","Full stretch at bottom — arms wide and low"],
+          primaryMuscles:["chest"],secondaryMuscles:["frontDelt"],
+          note:"Pulleys set low. Press up and across. Upper chest emphasis. Full stretch at bottom.",
+          spineFlag:"T9-T11: Stop before full adduction at center.",
+          variants:{
+            cableRope:{name:"Low-to-High Cable Fly (Rope)",note:"Rope handles."},
+            dumbbell:{name:"DB Incline Fly",note:"Incline 30–45°. Full stretch at bottom."},
+            machine:{name:"Upper Chest Machine Fly",note:"Adjustable pec deck set to low-to-high path."}}},
+      ]},
+      {type:"giant",label:"B",groupNote:"Rotator cuff circuit. B1→B2→B3 no rest. 60s after all three.",exercises:[
+        {id:"thu_06a",name:"External Rotation (Cable)",reps:"15 ea.",lockedSets:null,
+          difficulty:1,
+          formTip:"Elbow pinned at 90° to side throughout. Light weight — this is maintenance work.",
+          steps:["Low pulley, elbow at 90° pinned to side","Rotate forearm outward slowly","Full external rotation range","Return controlled — 3-sec eccentric"],
+          primaryMuscles:["rearDelt"],secondaryMuscles:["traps"],
+          note:"Light. Elbow at 90°, pinned to side. Rotate out slowly. Maintenance.",
+          variants:{
+            cable:{name:"Cable External Rotation",note:"Default. Low pulley."},
+            dumbbell:{name:"DB External Rotation",note:"Sidelying or standing. Very light."}}},
+        {id:"thu_06b",name:"Band Pull-Apart",reps:"20",lockedSets:null,
+          difficulty:1,
+          formTip:"Arms straight. Pull to chest line. Don't shrug — this is all rear delt and rhomboids.",
+          steps:["Hold band at shoulder width, arms straight","Pull apart to chest — full range","Squeeze rear delts at peak","Return controlled"],
+          primaryMuscles:["rearDelt","traps"],secondaryMuscles:["lats"],
+          note:"Arms straight. Pull to chest. Squeeze rear delts. Do not shrug.",
+          variants:{
+            cable:{name:"Cable Pull-Apart",note:"Both handles at shoulder height."},
+            freeWeight:{name:"Band Pull-Apart",note:"Default."},
+          }},
+        {id:"thu_06c",name:"Face Pulls (Cable)",reps:"20",lockedSets:null,
+          difficulty:1,
+          formTip:"Elbows must end ABOVE shoulder level. Think 'double bicep pose' at the end.",
+          steps:["Rope at eye level","Pull to forehead, elbows flare up and out","External rotate at end — thumbs behind head","Return slow"],
+          primaryMuscles:["rearDelt","traps"],secondaryMuscles:["forearms"],
+          note:"Rope at eye level. Pull to forehead. Elbows flare up. External rotation at end.",
+          variants:{
+            cableRope:{name:"Cable Face Pull (Rope)",note:"Rope attachment. Best option."},
+            freeWeight:{name:"Band Face Pull",note:"Anchor at face height."},
+            machine:{name:"Rear Delt Machine",note:"Same musculature, different path."}}},
+      ]},
+    ],
+    finisher:null,conditioning:null,
+    cooldown:"Full body stretch 5 min. External rotation stretch. Band pull-aparts × 20.",
+  },
+  {
+    day:"FRI",label:"Arms",tag:"Biceps / Triceps — FST-7",color:"#FF6B6B",
+    warmup:[
+      {item:"Band Pull-Apart",equipment:"BAND",notes:"2 × 20. MANDATORY."},
+      {item:"Face Pull",equipment:"CABLE",notes:"2 × 20. MANDATORY."},
+      {item:"EZ Bar Curl Primer",equipment:"BARBELL",notes:"Light. 2 × 10. Warm up elbow/bicep tendon."},
+      {item:"Tricep Pushdown Primer",equipment:"CABLE",notes:"Light. 1 × 15. Warm up elbow/tricep tendon."},
+    ],
+    groups:[
+      {type:"superset",label:"A",groupNote:"Classic antagonist pair. No rest A1→A2. 90s after both.",exercises:[
+        {id:"fri_01a",name:"EZ Bar Curl",reps:"10–12",lockedSets:null,
+          difficulty:2,
+          formTip:"Full supination at top. Elbows pinned to sides — if they drift, the weight is too heavy.",
+          steps:["EZ bar at shoulder-width grip","Elbows pinned to sides throughout","Curl to full supination at top, squeeze","Lower 2-sec eccentric"],
+          primaryMuscles:["biceps"],secondaryMuscles:["forearms"],
+          note:"Full supination at top. Elbows pinned. No swing. Squeeze hard at peak.",
+          variants:{
+            cableBar:{name:"Cable Curl (Straight Bar)",note:"Straight bar, low pulley. Constant tension."},
+            cableEZBar:{name:"Cable EZ Bar Curl",note:"EZ bar attachment. Low pulley."},
+            straightBar:{name:"Barbell Curl (Straight Bar)",note:"Full supination. Elbows pinned."},
+            ezBar:{name:"EZ Bar Curl",note:"Default. Easier on wrists than straight bar."},
+            dumbbell:{name:"DB Alternating Curl",note:"Alternating supination. Full ROM each arm."},
+            machine:{name:"Preacher Curl Machine",note:"Arm pad locks elbow. No body english."},
+            hammerStrength:{name:"Hammer Strength Preacher Curl",note:"Plate-loaded. Excellent peak and stretch."}}},
+        {id:"fri_01b",name:"Tricep Pushdown (Rope)",reps:"12–15",lockedSets:null,isSuperset:true,subName:"Tricep Pushdown",
+          difficulty:1,
+          formTip:"Flare rope ends at bottom for lateral head activation. Elbows pinned throughout.",
+          steps:["Rope attachment, high pulley","Elbows pinned to sides","Push down to full extension, flare rope ends","Return to 90° — no higher"],
+          primaryMuscles:["triceps"],secondaryMuscles:["forearms"],
+          note:"Flare rope ends at bottom. Full extension. Elbows pinned.",
+          variants:{
+            cable:{name:"Cable Tricep Pushdown",note:"Default. Rope for lateral head."},
+            cableRope:{name:"Cable Pushdown (Rope)",note:"Default. Rope flare for lateral head."},
+            cableBar:{name:"Cable Pushdown (Straight Bar)",note:"Straight bar for medial head."},
+            cableEZBar:{name:"Cable Pushdown (EZ Bar)",note:"EZ bar for wrist comfort."},
+            dumbbell:{name:"DB Kickback",note:"Hinge 45°. Upper arm parallel. Full extension."},
+            machine:{name:"Tricep Pushdown Machine",note:"Selectorized. Good isolation."}}},
+      ]},
+      {type:"superset",label:"B",groupNote:"Stretch-focused long head pair. No rest B1→B2. 75s after both.",exercises:[
+        {id:"fri_02a",name:"Incline DB Curl",reps:"12",lockedSets:null,
+          difficulty:2,
+          formTip:"Long head fully stretched — arms must hang behind torso at bottom. Don't swing.",
+          steps:["Set bench 45–60°, sit and let arms hang behind torso","Curl with full supination at top","Arms must drop behind torso — this is the whole point","No swinging — if you can't hold it, lower weight"],
+          primaryMuscles:["biceps"],secondaryMuscles:["forearms"],
+          note:"Long head fully stretched. Arms hang behind torso. No swinging. Full supination.",
+          variants:{
+            cable:{name:"High Cable Curl (Behind Body)",note:"Pulley high behind you. Step forward for long head stretch."},
+            cableBar:{name:"Cable Curl (Straight Bar, High)",note:"High pulley behind body. Long head stretch."},
+            dumbbell:{name:"Incline DB Curl",note:"Default. Best long head bicep exercise."},
+            machine:{name:"Machine Curl (Stretch Position)",note:"Only if machine allows extended arm position."}}},
+        {id:"fri_02b",name:"Overhead Cable Tricep Extension",reps:"12",lockedSets:null,isSuperset:true,subName:"Overhead Extension",
+          difficulty:2,
+          formTip:"Elbows point FORWARD — not out. Full stretch at bottom. Long head is the goal.",
+          steps:["High pulley rope, face away from stack","Hands behind head, elbows forward","Extend to lockout, squeeze at top","Lower with control — feel long head stretch"],
+          primaryMuscles:["triceps"],secondaryMuscles:["forearms"],
+          note:"Long head fully stretched overhead. Elbows forward — do not flare. Full stretch at bottom.",
+          spineFlag:"C6-C7: Monitor cervical. Switch to pushdown at any radiating pain.",
+          variants:{
+            cableRope:{name:"Overhead Cable Extension (Rope)",note:"Default. Rope behind head."},
+            cableBar:{name:"Overhead Cable Extension (Bar)",note:"Straight bar behind head. More stable."},
+            dumbbell:{name:"DB Overhead Tricep Extension",note:"Single DB, both hands gripping plate."},
+            machine:{name:"Overhead Tricep Machine",note:"Excellent if available."}}},
+      ]},
+      {type:"standalone",label:"1",exercises:[
+        {id:"fri_03",name:"Cable Hammer Curl",reps:"12–15",lockedSets:null,
+          difficulty:1,
+          formTip:"Neutral grip throughout — no supination. This targets brachialis and brachioradialis.",
+          steps:["Rope attachment, low pulley","Neutral grip (palms facing each other)","Curl to peak — no supination","Full ROM, slow eccentric"],
+          primaryMuscles:["biceps"],secondaryMuscles:["forearms"],
+          note:"Rope attachment. Neutral grip throughout. Brachialis and brachioradialis emphasis.",
+          variants:{
+            cableRope:{name:"Cable Hammer Curl (Rope)",note:"Rope, low pulley. Default."},
+            dumbbell:{name:"DB Hammer Curl",note:"Neutral grip, alternating or simultaneous."},
+            machine:{name:"Neutral Grip Machine Curl",note:"If available."}}},
+      ]},
+      {type:"standalone",label:"2",exercises:[
+        {id:"fri_04",name:"DB Skull Crusher",reps:"12",lockedSets:null,
+          difficulty:2,
+          formTip:"Elbows in — pointing at ceiling throughout. Lower to TEMPLES not forehead.",
+          steps:["Lie flat, DBs above chest","Elbows pointing at ceiling — don't let them flare","Lower DBs to temples with control","Extend to lockout, elbows stay fixed"],
+          primaryMuscles:["triceps"],secondaryMuscles:["forearms"],
+          note:"Elbows in. Lower to temples. 2-sec descent. No elbow flare.",
+          spineFlag:"C6-C7: Monitor cervical. Switch to cable version if any symptoms.",
+          variants:{
+            cableBar:{name:"Cable Skull Crusher (Straight Bar)",note:"Straight bar, low pulley."},
+            cableEZBar:{name:"Cable Skull Crusher (EZ Bar)",note:"EZ bar, low pulley. Wrist comfort."},
+            dumbbell:{name:"DB Skull Crusher",note:"Default."},
+            ezBar:{name:"EZ Bar Skull Crusher",note:"EZ bar for wrist comfort. Flat bench."},
+            straightBar:{name:"Barbell Skull Crusher",note:"Straight bar. Classic movement."},
+            machine:{name:"Tricep Extension Machine",note:"Selectorized overhead or pushdown variant."},
+            hammerStrength:{name:"Hammer Strength Tricep Press",note:"Plate-loaded. Compound tricep."}}},
+      ]},
+      {type:"standalone",label:"3",exercises:[
+        {id:"fri_05",name:"Cable Curl — FST-7",reps:"12",lockedSets:7,
+          difficulty:2,
+          formTip:"45s rest only. Same weight all 7. Squeeze at peak every single rep.",
+          steps:["Low pulley, straight bar or EZ bar","45s rest timer — start immediately after each set","Same weight all 7 sets — pump is the goal","Squeeze hard at peak, slow eccentric"],
+          primaryMuscles:["biceps"],secondaryMuscles:["forearms"],
+          note:"45s rest between sets. Same weight all 7. Squeeze at peak. FST-7 fascial protocol.",
+          variants:{
+            cableBar:{name:"Cable Curl (Straight Bar)",note:"Straight bar. Constant tension."},
+            cableEZBar:{name:"Cable EZ Bar Curl (FST-7)",note:"EZ bar attachment. Wrist comfort."},
+            dumbbell:{name:"DB Curl (FST-7)",note:"Simultaneous. Same 45s rest protocol."},
+            ezBar:{name:"EZ Bar Curl (FST-7)",note:"EZ bar, 7 sets, 45s rest."},
+            machine:{name:"Machine Preacher Curl",note:"Locked elbow. Good for isolating contraction."},
+            hammerStrength:{name:"Hammer Strength Preacher Curl",note:"Strip to 25% max. Full pump."}}},
+      ]},
+    ],
+    finisher:null,conditioning:null,
+    cooldown:"3 min easy walk. Bicep stretch overhead, tricep cross-body stretch. Week is done.",
+  },
+];
+
+const PROGRAM_NOTES = [
+  "SAT is locked. Family rest day. Non-negotiable.",
+  "SUN is Zone 2 cardio — pool swim preferred. 45–60 min. Log in Cardio tab.",
+  "Session hard cap: 60–75 minutes. Trim accessories before cutting primary lifts.",
+  "Permanently excluded: conventional deadlifts, barbell back squats, bent-over barbell rows, standing OHP, weighted pull-ups, heavy pec deck.",
+  "RDLs capped at RPE 6–7. Any lumbar fatigue is a stop signal.",
+  "Phase transitions every 2 weeks. Phase 4 deload is mandatory — do not skip.",
+];
+
+const DAY_ORDER=["MON","TUE","WED","THU","FRI"];
+
+const DIFFICULTY_LABELS={1:"Beginner",2:"Intermediate",3:"Advanced",4:"Elite"};
+const DIFFICULTY_COLORS={1:C.green,2:C.cyan,3:C.gold,4:"#FF6B6B"};
+
+// Flat list of every exercise across the program (deduped by id)
+const ALL_EXERCISES=(()=>{
+  const out=[];
+  PROGRAM.forEach(day=>{(day.groups||[]).forEach(g=>{(g.exercises||[]).forEach(ex=>{
+    if(!out.find(e=>e.id===ex.id))out.push({...ex,dayLabel:day.label,dayTag:day.day});
+  });});});
+  return out;
+})();
+
+// ── REPLACE EXERCISE PICKER ──────────────────────────────────────
+// Opens filtered to the original exercise's primary muscle. User picks a
+// full replacement movement. Filter is changeable. Excludes the original.
+function ReplacePicker({original,onSelect,onClose}){
+  const firstMuscle=(original.primaryMuscles&&original.primaryMuscles[0])||"";
+  const[filterMuscle,setFilterMuscle]=useState(firstMuscle);
+  const[search,setSearch]=useState("");
+
+  const filtered=ALL_EXERCISES.filter(ex=>{
+    if(ex.id===original.id)return false;
+    const matchSearch=!search||ex.name.toLowerCase().includes(search.toLowerCase());
+    const matchMuscle=!filterMuscle||(ex.primaryMuscles||[]).includes(filterMuscle)||(ex.secondaryMuscles||[]).includes(filterMuscle);
+    return matchSearch&&matchMuscle;
+  });
+
+  const muscleChips=["chest","biceps","triceps","quads","hamstrings","glutes","lats","traps","rearDelt","frontDelt","abs","calves","forearms"];
+
+  return(
+    <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:C.bg,zIndex:200,overflowY:"auto",display:"flex",flexDirection:"column"}}>
+      <div style={{background:C.surfaceMid,borderBottom:`2px solid ${C.gold}`,padding:"20px 18px",position:"sticky",top:0,zIndex:10,flexShrink:0}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:"10px",letterSpacing:"3px",color:C.gold,textTransform:"uppercase",fontWeight:"bold",marginBottom:"4px"}}>Replace Exercise</div>
+            <div style={{fontSize:"18px",fontWeight:"bold",color:C.white,lineHeight:1.2}}>{original.name}</div>
+            <div style={{fontSize:"11px",color:C.textMuted,marginTop:"3px"}}>Pick a different movement for this session</div>
+          </div>
+          <button onClick={onClose} style={{background:"transparent",border:`1.5px solid ${C.borderMid}`,borderRadius:"8px",padding:"10px 16px",color:C.textMid,fontSize:"13px",fontWeight:"bold",flexShrink:0,marginLeft:"12px"}}>✕ Close</button>
+        </div>
+      </div>
+      <div style={{padding:"16px 18px 0"}}>
+        <input type="text" placeholder="Search exercises..." value={search} onChange={e=>setSearch(e.target.value)} style={{marginBottom:"12px",fontSize:"14px"}}/>
+        <div style={{fontSize:"10px",letterSpacing:"2px",color:C.textFaint,textTransform:"uppercase",fontWeight:"bold",marginBottom:"8px"}}>Filter by Muscle</div>
+        <div style={{overflowX:"auto",display:"flex",gap:"6px",paddingBottom:"6px",marginBottom:"8px"}}>
+          <button onClick={()=>setFilterMuscle("")} style={{padding:"6px 12px",background:!filterMuscle?C.gold:"transparent",border:`1px solid ${!filterMuscle?C.gold:C.borderMid}`,borderRadius:"20px",color:!filterMuscle?C.bg:C.textMuted,fontSize:"11px",fontWeight:"bold",whiteSpace:"nowrap"}}>All</button>
+          {muscleChips.map(m=>(
+            <button key={m} onClick={()=>setFilterMuscle(filterMuscle===m?"":m)} style={{padding:"6px 12px",background:filterMuscle===m?C.gold:"transparent",border:`1px solid ${filterMuscle===m?C.gold:C.borderMid}`,borderRadius:"20px",color:filterMuscle===m?C.bg:C.textMuted,fontSize:"11px",fontWeight:"bold",whiteSpace:"nowrap",textTransform:"capitalize"}}>
+              {m.replace(/([A-Z])/g,' $1').trim()}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{padding:"4px 18px 40px",flex:1}}>
+        <div style={{fontSize:"11px",color:C.textFaint,marginBottom:"12px"}}>{filtered.length} options</div>
+        {filtered.map(ex=>(
+          <div key={ex.id} onClick={()=>onSelect(ex)}
+            style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"14px",marginBottom:"10px",cursor:"pointer"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:"15px",fontWeight:"bold",color:C.white,marginBottom:"3px"}}>{ex.name}</div>
+                <div style={{fontSize:"11px",color:C.textMuted,marginBottom:"6px"}}>{ex.dayTag} — {ex.dayLabel}</div>
+                <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+                  {ex.difficulty&&<span style={{fontSize:"10px",background:DIFFICULTY_COLORS[ex.difficulty]+"22",color:DIFFICULTY_COLORS[ex.difficulty],padding:"2px 8px",borderRadius:"10px",fontWeight:"bold"}}>{DIFFICULTY_LABELS[ex.difficulty]}</span>}
+                  {(ex.primaryMuscles||[]).slice(0,2).map(m=><span key={m} style={{fontSize:"10px",background:C.cyanLight,color:C.cyan,padding:"2px 8px",borderRadius:"10px",fontWeight:"bold",textTransform:"capitalize"}}>{m.replace(/([A-Z])/g,' $1').trim()}</span>)}
+                </div>
+              </div>
+              <div style={{fontSize:"11px",color:C.gold,fontWeight:"bold",flexShrink:0,marginLeft:"10px"}}>SELECT →</div>
+            </div>
+            {ex.spineFlag&&<div style={{fontSize:"10px",color:"#FF8C8C",marginTop:"6px"}}>⚠ {ex.spineFlag}</div>}
+          </div>
+        ))}
+        {filtered.length===0&&<div style={{textAlign:"center",padding:"40px 0",fontSize:"13px",color:C.textFaint,fontStyle:"italic"}}>No exercises match. Try a different muscle or search.</div>}
+      </div>
+    </div>
+  );
+}
+
+// Resolve the effective exercise + log key for a slot, honoring a substitution.
+// Returns {ex, logKey} where ex is the movement actually being performed.
+function resolveSlot(origEx,week,substitutions){
+  const sub=substitutions?substitutions[origEx.id+"_w"+week]:null;
+  if(sub){
+    const subDef=ALL_EXERCISES.find(e=>e.id===sub.subId);
+    if(subDef){
+      const eff={...subDef,id:origEx.id,isSuperset:origEx.isSuperset,subName:origEx.subName,
+        lockedSets:origEx.lockedSets!==undefined?origEx.lockedSets:subDef.lockedSets,reps:origEx.reps||subDef.reps};
+      return{ex:eff,logKey:origEx.id+"_w"+week+"_a_sub_"+sub.subId,isSub:true,origName:origEx.name};
+    }
+  }
+  return{ex:origEx,logKey:origEx.id+"_w"+week+"_a",isSub:false,origName:origEx.name};
+}
+
+// ── EXERCISE LIBRARY ─────────────────────────────────────────────
+const ALL_MUSCLE_GROUPS=["chest","biceps","triceps","quads","hamstrings","glutes","lats","traps","rearDelt","frontDelt","abs","obliques","calves","forearms","lowerBack","innerQuad"];
+const ALL_EQUIPMENT=["cable","cableRope","cableBar","cableEZBar","freeWeight","dumbbell","ezBar","straightBar","machine","hammerStrength","isometric","bodyweight"];
+
+function ExerciseLibrary({sessionLog,week,phase}){
+  const[search,setSearch]=useState("");
+  const[filterMuscle,setFilterMuscle]=useState("");
+  const[filterEquip,setFilterEquip]=useState("");
+  const[selected,setSelected]=useState(null);
+  const[favorites,setFavorites]=useState(()=>LS.get("tm_favorites")||{});
+
+  const allExercises=useMemo(()=>{
+    const exs=[];
+    PROGRAM.forEach(day=>{
+      (day.groups||[]).forEach(g=>{
+        (g.exercises||[]).forEach(ex=>{
+          if(!exs.find(e=>e.id===ex.id))exs.push({...ex,dayLabel:day.label,dayTag:day.day});
+        });
+      });
+    });
+    return exs;
+  },[]);
+
+  const filtered=useMemo(()=>{
+    return allExercises.filter(ex=>{
+      const matchSearch=!search||ex.name.toLowerCase().includes(search.toLowerCase());
+      const matchMuscle=!filterMuscle||(ex.primaryMuscles||[]).includes(filterMuscle)||(ex.secondaryMuscles||[]).includes(filterMuscle);
+      const matchEquip=!filterEquip||ex.variants&&ex.variants[filterEquip]!==undefined;
+      return matchSearch&&matchMuscle&&matchEquip;
+    });
+  },[allExercises,search,filterMuscle,filterEquip]);
+
+  function toggleFav(id){
+    const nf={...favorites,[id]:!favorites[id]};
+    if(!nf[id])delete nf[id];
+    setFavorites(nf);LS.set("tm_favorites",nf);
+  }
+
+  function getExHistory(exId){
+    const allWeeks=[];
+    for(let w=1;w<=16;w++){
+      const log=sessionLog[exId+"_w"+w+"_a"]||[];
+      const sets=log.filter(s=>s&&s.weight&&s.reps);
+      if(sets.length){
+        const maxW=Math.max(...sets.map(s=>parseFloat(s.weight)||0));
+        const totalVol=sets.reduce((a,s)=>(a+(parseFloat(s.weight)||0)*(parseInt(s.reps)||0)),0);
+        const best1RM=Math.max(...sets.map(s=>calc1RM(parseFloat(s.weight)||0,parseInt(s.reps)||0)));
+        const totalReps=sets.reduce((a,s)=>(a+(parseInt(s.reps)||0)),0);
+        allWeeks.push({week:w,maxWeight:maxW,volume:totalVol,est1RM:best1RM,totalReps});
+      }
+    }
+    return allWeeks;
+  }
+
+  if(selected){
+    const hist=getExHistory(selected.id);
+    const bestWeight=hist.length?Math.max(...hist.map(h=>h.maxWeight)):0;
+    const bestVol=hist.length?Math.max(...hist.map(h=>h.volume)):0;
+    const best1RM=hist.length?Math.max(...hist.map(h=>h.est1RM)):0;
+    const totalReps=hist.reduce((a,h)=>(a+h.totalReps),0);
+    return(
+      <div style={{padding:"0 18px 40px"}}>
+        <button onClick={()=>setSelected(null)} style={{background:"transparent",border:`1px solid ${C.borderMid}`,borderRadius:"6px",padding:"8px 14px",color:C.textMuted,fontSize:"12px",fontWeight:"bold",marginBottom:"16px",letterSpacing:"1px"}}>← BACK TO LIBRARY</button>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"12px"}}>
+          <div>
+            <div style={{fontSize:"22px",fontWeight:"bold",color:C.white,lineHeight:1.2,marginBottom:"4px"}}>{selected.name}</div>
+            <div style={{fontSize:"12px",color:C.textMuted}}>{selected.dayLabel}</div>
+          </div>
+          <button onClick={()=>toggleFav(selected.id)} style={{background:"transparent",border:"none",fontSize:"22px",padding:"4px"}}>
+            {favorites[selected.id]?"★":"☆"}
+          </button>
+        </div>
+        <div style={{display:"flex",gap:"8px",marginBottom:"14px",flexWrap:"wrap"}}>
+          {selected.difficulty&&<span style={{fontSize:"11px",background:DIFFICULTY_COLORS[selected.difficulty]+"22",border:`1px solid ${DIFFICULTY_COLORS[selected.difficulty]}44`,color:DIFFICULTY_COLORS[selected.difficulty],padding:"3px 10px",borderRadius:"20px",fontWeight:"bold"}}>{DIFFICULTY_LABELS[selected.difficulty]}</span>}
+          {(selected.primaryMuscles||[]).map(m=><span key={m} style={{fontSize:"11px",background:C.cyanLight,border:`1px solid ${C.cyanBorder}`,color:C.cyan,padding:"3px 10px",borderRadius:"20px",fontWeight:"bold",textTransform:"capitalize"}}>{m.replace(/([A-Z])/g,' $1').trim()}</span>)}
+        </div>
+
+        {selected.spineFlag&&(
+          <div style={{background:C.redLight,border:"1px solid rgba(255,68,68,0.3)",borderLeft:"3px solid #FF6B6B",borderRadius:"6px",padding:"10px 12px",marginBottom:"14px",fontSize:"12px",color:"#FF8C8C",lineHeight:1.5}}>⚠ {selected.spineFlag}</div>
+        )}
+        {selected.formTip&&(
+          <div style={{background:C.cyanLight,border:`1px solid ${C.cyanBorder}`,borderLeft:`3px solid ${C.cyan}`,borderRadius:"6px",padding:"10px 12px",marginBottom:"14px",fontSize:"13px",color:C.textMid,lineHeight:1.6}}>💡 {selected.formTip}</div>
+        )}
+        {selected.steps&&(
+          <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"14px",marginBottom:"14px"}}>
+            <div style={{fontSize:"10px",letterSpacing:"2px",color:C.textFaint,textTransform:"uppercase",fontWeight:"bold",marginBottom:"10px"}}>How To</div>
+            {selected.steps.map((step,i)=>(
+              <div key={i} style={{display:"flex",gap:"10px",marginBottom:"8px",alignItems:"flex-start"}}>
+                <div style={{fontSize:"12px",color:C.cyan,fontWeight:"bold",flexShrink:0,minWidth:"18px",lineHeight:1.6}}>{i+1}.</div>
+                <div style={{fontSize:"13px",color:C.textMid,lineHeight:1.6}}>{step}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {hist.length>0&&(
+          <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"14px",marginBottom:"14px"}}>
+            <div style={{fontSize:"10px",letterSpacing:"2px",color:C.textFaint,textTransform:"uppercase",fontWeight:"bold",marginBottom:"12px"}}>Performance History</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px",marginBottom:"12px"}}>
+              {[["Max Weight",bestWeight?""+bestWeight+" lbs":"—"],["Est. 1RM",best1RM?best1RM+" lbs":"—"],["Best Volume",bestVol?bestVol+" lbs":"—"],["Total Reps",totalReps||"—"]].map(([lbl,val])=>(
+                <div key={lbl} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"6px",padding:"10px 12px"}}>
+                  <div style={{fontSize:"10px",color:C.textFaint,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"3px",fontWeight:"bold"}}>{lbl}</div>
+                  <div style={{fontSize:"18px",fontWeight:"bold",color:C.cyan}}>{val}</div>
+                </div>
+              ))}
+            </div>
+            {hist.slice(-6).map((h,i)=>(
+              <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${C.border}`}}>
+                <div style={{fontSize:"12px",color:C.textMuted}}>Week {h.week}</div>
+                <div style={{fontSize:"12px",color:C.textMid,fontWeight:"bold"}}>{h.maxWeight}lb × {h.totalReps} reps · Vol: {h.volume}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        {hist.length===0&&(
+          <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"20px",textAlign:"center",marginBottom:"14px"}}>
+            <div style={{fontSize:"13px",color:C.textFaint,fontStyle:"italic"}}>No workout history logged yet for this exercise.</div>
+          </div>
+        )}
+
+        {selected.variants&&Object.keys(selected.variants).some(k=>selected.variants[k]!==null)&&(
+          <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"14px"}}>
+            <div style={{fontSize:"10px",letterSpacing:"2px",color:C.textFaint,textTransform:"uppercase",fontWeight:"bold",marginBottom:"12px"}}>Equipment Alternatives</div>
+            {Object.entries(selected.variants).filter(([k,v])=>v!==null).map(([key,v])=>(
+              <div key={key} style={{display:"flex",gap:"10px",alignItems:"flex-start",padding:"8px 0",borderBottom:`1px solid ${C.border}`}}>
+                <EquipBadge type={key}/>
+                <div>
+                  <div style={{fontSize:"13px",fontWeight:"bold",color:C.white,marginBottom:"2px"}}>{v.name}</div>
+                  <div style={{fontSize:"11px",color:C.textMuted}}>{v.note}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return(
+    <div style={{padding:"0 18px 40px"}}>
+      <div style={{position:"sticky",top:0,background:C.bg,paddingTop:"16px",paddingBottom:"12px",zIndex:5}}>
+        <input type="text" placeholder="Search exercises..." value={search} onChange={e=>setSearch(e.target.value)} style={{marginBottom:"10px",fontSize:"14px"}}/>
+        <div style={{overflowX:"auto",display:"flex",gap:"6px",paddingBottom:"4px"}}>
+          <button onClick={()=>setFilterMuscle("")} style={{padding:"6px 12px",background:!filterMuscle?C.cyan:"transparent",border:`1px solid ${!filterMuscle?C.cyan:C.borderMid}`,borderRadius:"20px",color:!filterMuscle?C.bg:C.textMuted,fontSize:"11px",fontWeight:"bold",whiteSpace:"nowrap"}}>All Muscles</button>
+          {["chest","biceps","triceps","quads","hamstrings","glutes","lats","traps","rearDelt","frontDelt","abs","calves"].map(m=>(
+            <button key={m} onClick={()=>setFilterMuscle(filterMuscle===m?"":m)} style={{padding:"6px 12px",background:filterMuscle===m?C.cyan:"transparent",border:`1px solid ${filterMuscle===m?C.cyan:C.borderMid}`,borderRadius:"20px",color:filterMuscle===m?C.bg:C.textMuted,fontSize:"11px",fontWeight:"bold",whiteSpace:"nowrap",textTransform:"capitalize"}}>
+              {m.replace(/([A-Z])/g,' $1').trim()}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{fontSize:"11px",color:C.textFaint,marginBottom:"12px"}}>{filtered.length} exercises</div>
+
+      {filtered.map(ex=>(
+        <div key={ex.id} onClick={()=>setSelected(ex)}
+          style={{background:C.surface,border:`1px solid ${favorites[ex.id]?C.gold:C.border}`,borderRadius:"8px",padding:"14px",marginBottom:"10px",cursor:"pointer"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+            <div style={{flex:1}}>
+              <div style={{fontSize:"15px",fontWeight:"bold",color:C.white,marginBottom:"3px"}}>{ex.name}</div>
+              <div style={{fontSize:"11px",color:C.textMuted,marginBottom:"6px"}}>{ex.dayTag} — {ex.dayLabel}</div>
+              <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+                {ex.difficulty&&<span style={{fontSize:"10px",background:DIFFICULTY_COLORS[ex.difficulty]+"22",color:DIFFICULTY_COLORS[ex.difficulty],padding:"2px 8px",borderRadius:"10px",fontWeight:"bold"}}>{DIFFICULTY_LABELS[ex.difficulty]}</span>}
+                {(ex.primaryMuscles||[]).slice(0,2).map(m=><span key={m} style={{fontSize:"10px",background:C.cyanLight,color:C.cyan,padding:"2px 8px",borderRadius:"10px",fontWeight:"bold",textTransform:"capitalize"}}>{m.replace(/([A-Z])/g,' $1').trim()}</span>)}
+              </div>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:"6px"}}>
+              <button onClick={e=>{e.stopPropagation();toggleFav(ex.id);}} style={{background:"transparent",border:"none",fontSize:"18px",color:favorites[ex.id]?C.gold:C.textFaint,padding:"2px"}}>
+                {favorites[ex.id]?"★":"☆"}
+              </button>
+              <div style={{fontSize:"11px",color:C.cyan,fontWeight:"bold"}}>→</div>
+            </div>
+          </div>
+        </div>
+      ))}
+      {filtered.length===0&&<div style={{textAlign:"center",padding:"40px 0",fontSize:"13px",color:C.textFaint,fontStyle:"italic"}}>No exercises match your filters.</div>}
+    </div>
+  );
+}
+
+// ── RECOVERY VIEW ────────────────────────────────────────────────
+const MUSCLE_RECOVERY_MAP={
+  chest:["wed_03a","wed_05","mon_04b","thu_05","wed_01","tue_04c"],
+  biceps:["fri_01a","fri_02a","fri_03","fri_05"],
+  triceps:["fri_01b","fri_02b","fri_04"],
+  quads:["mon_02","mon_03","thu_01","tue_04b"],
+  hamstrings:["mon_01","mon_05","thu_02b","tue_04a"],
+  glutes:["mon_02","mon_03","thu_01","tue_02","tue_04a"],
+  lats:["wed_02","thu_03","thu_04","mon_04a"],
+  traps:["mon_06","thu_06b","thu_06c","wed_04b"],
+  rearDelt:["mon_06","thu_06a","thu_06b","thu_06c","wed_04b"],
+  frontDelt:["wed_01","mon_04b","wed_03a","thu_05"],
+  abs:["tue_03"],
+  calves:["mon_05","thu_02b"],
+};
+const RECOVERY_DECAY_PER_DAY=0.25; // 25% recovery per day without training
+
+function calcMuscleRecovery(muscleKey,sessionLog,completedLog){
+  const exIds=MUSCLE_RECOVERY_MAP[muscleKey]||[];
+  let maxFatigue=0;
+  const now=Date.now();
+  exIds.forEach(exId=>{
+    for(let w=1;w<=16;w++){
+      const log=sessionLog[exId+"_w"+w+"_a"]||[];
+      const sets=log.filter(s=>s&&s.weight&&s.reps);
+      if(!sets.length)continue;
+      const dayKey=Object.keys(completedLog).find(k=>k.startsWith("") && completedLog[k]);
+      // Estimate fatigue based on volume
+      const vol=sets.reduce((a,s)=>(a+(parseFloat(s.weight)||0)*(parseInt(s.reps)||0)),0);
+      const fatigue=Math.min(100,vol/500*30);
+      if(fatigue>maxFatigue)maxFatigue=fatigue;
+    }
+  });
+  // Rough time-based recovery: assume training was recent if maxFatigue > 0
+  const recovered=Math.min(100,Math.max(0,100-maxFatigue));
+  return Math.round(recovered);
+}
+
+function RecoveryView({sessionLog,completedLog}){
+  const[manualOverrides,setManualOverrides]=useState(()=>LS.get("tm_recovery_manual")||{});
+  const[selected,setSelected]=useState(null);
+
+  const muscles=Object.keys(MUSCLE_RECOVERY_MAP);
+
+  function getRecovery(m){
+    if(manualOverrides[m]!==undefined)return manualOverrides[m];
+    return calcMuscleRecovery(m,sessionLog,completedLog);
+  }
+
+  function setManual(m,val){
+    const n={...manualOverrides,[m]:val};
+    setManualOverrides(n);LS.set("tm_recovery_manual",n);
+  }
+  function clearManual(m){
+    const n={...manualOverrides};delete n[m];
+    setManualOverrides(n);LS.set("tm_recovery_manual",n);
+  }
+
+  const recoveryColor=(pct)=>{
+    if(pct>=80)return C.green;
+    if(pct>=50)return C.gold;
+    if(pct>=25)return C.orange;
+    return C.red;
+  };
+
+  if(selected){
+    const pct=getRecovery(selected);
+    const rc=recoveryColor(pct);
+    const exIds=MUSCLE_RECOVERY_MAP[selected]||[];
+    // Gather recent sets for this muscle
+    const recentSets=[];
+    exIds.forEach(exId=>{
+      const ex=PROGRAM.flatMap(d=>d.groups||[]).flatMap(g=>g.exercises||[]).find(e=>e.id===exId);
+      for(let w=16;w>=1;w--){
+        const log=sessionLog[exId+"_w"+w+"_a"]||[];
+        const sets=log.filter(s=>s&&s.weight&&s.reps);
+        if(sets.length&&recentSets.length<8){
+          recentSets.push({exName:ex?ex.name:exId,week:w,sets});
+        }
+      }
+    });
+    return(
+      <div style={{padding:"0 18px 40px"}}>
+        <button onClick={()=>setSelected(null)} style={{background:"transparent",border:`1px solid ${C.borderMid}`,borderRadius:"6px",padding:"8px 14px",color:C.textMuted,fontSize:"12px",fontWeight:"bold",marginBottom:"16px",letterSpacing:"1px"}}>← BACK</button>
+        <div style={{fontSize:"22px",fontWeight:"bold",color:C.white,marginBottom:"6px",textTransform:"capitalize"}}>{selected.replace(/([A-Z])/g,' $1').trim()}</div>
+        <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"10px",padding:"16px",marginBottom:"14px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"10px"}}>
+            <div>
+              <div style={{fontSize:"36px",fontWeight:"bold",color:rc}}>{pct}%</div>
+              <div style={{fontSize:"12px",color:C.textMuted}}>recovered</div>
+            </div>
+            <div style={{width:"80px",height:"80px",position:"relative"}}>
+              <svg width="80" height="80" viewBox="0 0 80 80">
+                <circle cx="40" cy="40" r="34" fill="none" stroke={C.surfaceHi} strokeWidth="8"/>
+                <circle cx="40" cy="40" r="34" fill="none" stroke={rc} strokeWidth="8"
+                  strokeDasharray={`${pct*2.136} 213.6`} strokeLinecap="round" transform="rotate(-90 40 40)"/>
+              </svg>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:"8px",flexWrap:"wrap"}}>
+            <button onClick={()=>clearManual(selected)} style={{padding:"6px 12px",background:"transparent",border:`1px solid ${C.borderMid}`,borderRadius:"6px",color:C.textMuted,fontSize:"11px",fontWeight:"bold"}}>Auto Calculate</button>
+            {[0,25,50,75,100].map(v=>(
+              <button key={v} onClick={()=>setManual(selected,v)}
+                style={{padding:"6px 12px",background:manualOverrides[selected]===v?rc:"transparent",border:`1px solid ${manualOverrides[selected]===v?rc:C.borderMid}`,borderRadius:"6px",color:manualOverrides[selected]===v?C.bg:C.textMuted,fontSize:"11px",fontWeight:"bold"}}>
+                {v}%
+              </button>
+            ))}
+          </div>
+          {manualOverrides[selected]!==undefined&&<div style={{fontSize:"11px",color:C.gold,marginTop:"8px"}}>⚡ Manual override active</div>}
+        </div>
+        {recentSets.length>0&&(
+          <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"14px"}}>
+            <div style={{fontSize:"10px",letterSpacing:"2px",color:C.textFaint,textTransform:"uppercase",fontWeight:"bold",marginBottom:"12px"}}>Recent Training History</div>
+            {recentSets.map((rs,i)=>(
+              <div key={i} style={{padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
+                <div style={{fontSize:"13px",fontWeight:"bold",color:C.white,marginBottom:"3px"}}>{rs.exName}</div>
+                <div style={{fontSize:"11px",color:C.textMuted,marginBottom:"4px"}}>Week {rs.week}</div>
+                <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+                  {rs.sets.map((s,si)=>(
+                    <div key={si} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"4px",padding:"3px 8px",fontSize:"11px",color:C.textMid,fontWeight:"bold"}}>
+                      {s.weight}lb×{s.reps}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return(
+    <div style={{padding:"0 18px 40px"}}>
+      <div style={{fontSize:"11px",letterSpacing:"2px",color:C.textFaint,textTransform:"uppercase",fontWeight:"bold",marginBottom:"16px"}}>Muscle Recovery Map</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px"}}>
+        {muscles.map(m=>{
+          const pct=getRecovery(m);const rc=recoveryColor(pct);
+          return(
+            <div key={m} onClick={()=>setSelected(m)}
+              style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"12px",cursor:"pointer"}}>
+              <div style={{fontSize:"12px",fontWeight:"bold",color:C.white,marginBottom:"4px",textTransform:"capitalize"}}>{m.replace(/([A-Z])/g,' $1').trim()}</div>
+              <div style={{height:"4px",background:C.surfaceHi,borderRadius:"2px",marginBottom:"6px",overflow:"hidden"}}>
+                <div style={{height:"100%",width:`${pct}%`,background:rc,borderRadius:"2px",transition:"width 0.5s"}}/>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div style={{fontSize:"14px",fontWeight:"bold",color:rc}}>{pct}%</div>
+                <div style={{fontSize:"10px",color:C.textFaint}}>recovered</div>
+              </div>
+              {manualOverrides[m]!==undefined&&<div style={{fontSize:"9px",color:C.gold,marginTop:"3px"}}>⚡ Manual</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── EXPAND CARD ──────────────────────────────────────────────────
+function ExpandCard({label,sublabel,influence,color,colorBg,children}){
+  const[open,setOpen]=useState(false);
+  const c=color||C.cyan;const cbg=colorBg||C.cyanLight;
+  return(
+    <div style={{marginBottom:"10px"}}>
+      <div onClick={()=>setOpen(!open)} style={{background:open?cbg:C.card,border:`1px solid ${open?c+"55":C.border}`,borderRadius:"6px",padding:"14px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div>
+          <div style={{fontSize:"10px",letterSpacing:"3px",color:open?c:C.textFaint,textTransform:"uppercase",fontWeight:"bold",marginBottom:"3px"}}>{label}</div>
+          <div style={{fontSize:"15px",fontWeight:"bold",color:C.white}}>{sublabel}</div>
+          {influence&&<div style={{fontSize:"10px",color:C.textFaint,marginTop:"2px",fontStyle:"italic"}}>{influence}</div>}
+        </div>
+        <div style={{fontSize:"18px",color:open?c:C.textFaint,transition:"transform 0.15s",transform:open?"rotate(45deg)":"none"}}>+</div>
+      </div>
+      {open&&<div style={{background:C.card,border:`1px solid ${C.border}`,borderTop:"none",borderRadius:"0 0 6px 6px",padding:"16px"}}>{children}</div>}
+    </div>
+  );
+}
+
+// ── POST-WORKOUT SUMMARY ─────────────────────────────────────────
+function PostWorkoutSummary({session,week,sessionLog,phase,substitutions,onDismiss,totalSessionsCompleted}){
+  const exList=session.groups.flatMap(g=>g.exercises||[]);
+  let totalSets=0,totalVolume=0;
+  const musclesHit=new Set();
+  exList.forEach(origEx=>{
+    const{ex,logKey}=resolveSlot(origEx,week,substitutions);
+    const log=sessionLog[logKey]||[];
+    const sets=log.filter(s=>s&&s.weight&&s.reps);
+    totalSets+=sets.length;
+    totalVolume+=sets.reduce((a,s)=>(a+(parseFloat(s.weight)||0)*(parseInt(s.reps)||0)),0);
+    (ex.primaryMuscles||[]).forEach(m=>musclesHit.add(m));
+  });
+
+  const isMilestone=totalSessionsCompleted>0&&[1,5,10,25,50,100,150,200].includes(totalSessionsCompleted);
+
+  return(
+    <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.85)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:"20px"}}>
+      <div className="slideUp" style={{background:C.surface,border:`2px solid ${C.cyan}`,borderRadius:"16px",padding:"28px 24px",width:"100%",maxWidth:"400px",maxHeight:"80vh",overflowY:"auto"}}>
+        {isMilestone&&(
+          <div style={{textAlign:"center",marginBottom:"16px"}}>
+            <div style={{fontSize:"36px",marginBottom:"4px"}}>🏆</div>
+            <div style={{fontSize:"14px",fontWeight:"bold",color:C.gold,letterSpacing:"2px"}}>SESSION {totalSessionsCompleted} COMPLETE</div>
+          </div>
+        )}
+        <div style={{fontSize:"10px",letterSpacing:"3px",color:C.cyan,textTransform:"uppercase",fontWeight:"bold",marginBottom:"6px",textAlign:"center"}}>Session Complete</div>
+        <div style={{fontSize:"22px",fontWeight:"bold",color:C.white,marginBottom:"20px",textAlign:"center"}}>{session.label}</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"10px",marginBottom:"20px"}}>
+          {[["Total Sets",totalSets],["Volume",totalVolume>0?Math.round(totalVolume)+" lbs":"—"],["Muscles",musclesHit.size]].map(([l,v])=>(
+            <div key={l} style={{background:C.card,border:`1px solid ${C.cyanBorder}`,borderRadius:"8px",padding:"12px 8px",textAlign:"center"}}>
+              <div style={{fontSize:"20px",fontWeight:"bold",color:C.cyan}}>{v}</div>
+              <div style={{fontSize:"10px",color:C.textFaint,letterSpacing:"1px",textTransform:"uppercase",marginTop:"3px"}}>{l}</div>
+            </div>
+          ))}
+        </div>
+        {musclesHit.size>0&&(
+          <div style={{marginBottom:"20px"}}>
+            <div style={{fontSize:"10px",letterSpacing:"2px",color:C.textFaint,textTransform:"uppercase",fontWeight:"bold",marginBottom:"8px"}}>Muscles Worked</div>
+            <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+              {[...musclesHit].map(m=>(
+                <span key={m} style={{fontSize:"11px",background:C.cyanLight,border:`1px solid ${C.cyanBorder}`,color:C.cyan,padding:"3px 10px",borderRadius:"20px",fontWeight:"bold",textTransform:"capitalize"}}>{m.replace(/([A-Z])/g,' $1').trim()}</span>
+              ))}
+            </div>
+          </div>
+        )}
+        <div style={{fontSize:"11px",color:C.textFaint,textAlign:"center",marginBottom:"16px"}}>Total sessions: {totalSessionsCompleted}</div>
+        <button onClick={onDismiss} style={{width:"100%",padding:"14px",background:C.cyan,border:"none",borderRadius:"8px",color:C.bg,fontSize:"13px",fontWeight:"bold",letterSpacing:"2px",textTransform:"uppercase"}}>CLOSE</button>
+      </div>
+    </div>
+  );
+}
+
+// ── CONDITIONING TRACKER ─────────────────────────────────────────
+function ConditioningTracker({sessionKey,condLog,onCondLog,options,phaseType}){
+  const entry=condLog[sessionKey]||{selected:"",note:""};
+  const fullBlock=phaseType==="strength";
+  function update(field,val){const updated={...entry,[field]:val};onCondLog(sessionKey,updated);}
+  return(
+    <div style={{marginTop:"8px"}}>
+      <div style={{fontSize:"12px",letterSpacing:"1px",color:C.cyan,textTransform:"uppercase",fontWeight:"bold",marginBottom:"6px"}}>
+        {fullBlock?"10 MIN — Full Block (Strength Week)":"5 MIN"}
+      </div>
+      {options.map((opt,i)=>{
+        const isSelected=entry.selected===opt.name;
+        return(
+          <div key={i} onClick={()=>update("selected",isSelected?"":opt.name)}
+            style={{marginBottom:"10px",background:isSelected?C.cyanLight:C.card,border:`1.5px solid ${isSelected?C.cyan:C.border}`,borderRadius:"8px",padding:"12px 14px",cursor:"pointer"}}>
+            <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:isSelected?"8px":"0"}}>
+              <div style={{width:"20px",height:"20px",borderRadius:"50%",border:`2px solid ${isSelected?C.cyan:C.borderMid}`,background:isSelected?C.cyan:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                {isSelected&&<div style={{fontSize:"11px",color:C.bg,fontWeight:"bold"}}>✓</div>}
+              </div>
+              <div>
+                <div style={{fontSize:"14px",fontWeight:"bold",color:C.white}}>{opt.name}</div>
+                <div style={{fontSize:"12px",color:C.textMuted,marginTop:"2px"}}>{opt.protocol}</div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      {entry.selected&&(
+        <div style={{marginTop:"8px"}}>
+          <div style={{fontSize:"12px",color:C.textMid,letterSpacing:"1px",textTransform:"uppercase",fontWeight:"bold",marginBottom:"6px"}}>Notes</div>
+          <textarea rows={2} placeholder="e.g. 4 rounds, 8 min total..." value={entry.note||""} onChange={e=>update("note",e.target.value)}/>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── CARDIO LOG ───────────────────────────────────────────────────
+const CARDIO_TYPES=["Walking","Pool Swim","Ruck","Assault Bike","Row","Run","Zone 2 Bike","MTNTOUGH Circuit","Other"];
+function CardioLogView({cardioLog,onCardioLog}){
+  const[form,setForm]=useState({date:new Date().toLocaleDateString(),type:"",duration:"",avgHR:"",maxHR:"",calories:"",distance:"",trainingEffect:"",notes:""});
+  const[saved,setSaved]=useState(false);
+  function update(k,v){setForm(f=>({...f,[k]:v}));setSaved(false);}
+  function save(){
+    if(!form.type||!form.duration)return;
+    const entry={...form,timestamp:Date.now()};
+    const newLog=[...cardioLog,entry];onCardioLog(newLog);setSaved(true);
+    setForm({date:new Date().toLocaleDateString(),type:"",duration:"",avgHR:"",maxHR:"",calories:"",distance:"",trainingEffect:"",notes:""});
+  }
+  const recent=[...cardioLog].reverse().slice(0,10);
+  return(
+    <div>
+      <div style={{fontSize:"13px",color:C.textMid,lineHeight:1.6,marginBottom:"20px"}}>Log any cardio session. Pull Garmin metrics and record them here.</div>
+      <div style={{marginBottom:"16px"}}>
+        <div style={{fontSize:"12px",letterSpacing:"2px",color:C.cyan,textTransform:"uppercase",fontWeight:"bold",marginBottom:"10px"}}>Cardio Type</div>
+        <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+          {CARDIO_TYPES.map(t=>(
+            <button key={t} onClick={()=>update("type",form.type===t?"":t)}
+              style={{padding:"8px 12px",background:form.type===t?C.cyan:"transparent",border:`1.5px solid ${form.type===t?C.cyan:C.borderMid}`,borderRadius:"6px",color:form.type===t?C.bg:C.textMid,fontSize:"12px",fontWeight:form.type===t?"bold":"normal"}}>
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{fontSize:"12px",letterSpacing:"2px",color:C.cyan,textTransform:"uppercase",fontWeight:"bold",marginBottom:"10px"}}>Garmin Metrics</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px",marginBottom:"12px"}}>
+        {[["Duration (min)","duration","45"],["Avg HR (bpm)","avgHR","132"],["Max HR (bpm)","maxHR","158"],["Calories","calories","420"],["Distance (mi)","distance","2.1"],["Training Effect","trainingEffect","2.8 Aerobic"]].map(([lbl,key,ph])=>(
+          <div key={key}>
+            <div style={{fontSize:"11px",color:C.textMuted,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"5px",fontWeight:"bold"}}>{lbl}</div>
+            <input type="text" placeholder={ph} value={form[key]} onChange={e=>update(key,e.target.value)}/>
+          </div>
+        ))}
+      </div>
+      <div style={{marginBottom:"16px"}}>
+        <div style={{fontSize:"12px",color:C.textMuted,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"6px",fontWeight:"bold"}}>Notes</div>
+        <textarea rows={2} placeholder="Felt strong, hit Zone 2 the whole time..." value={form.notes} onChange={e=>update("notes",e.target.value)}/>
+      </div>
+      <button onClick={save} disabled={!form.type||!form.duration}
+        style={{width:"100%",padding:"16px",background:form.type&&form.duration?C.cyan:"rgba(0,212,255,0.2)",border:"none",borderRadius:"8px",color:form.type&&form.duration?C.bg:"rgba(255,255,255,0.3)",fontSize:"13px",fontWeight:"bold",letterSpacing:"2px",textTransform:"uppercase",marginBottom:"24px"}}>
+        LOG SESSION
+      </button>
+      {saved&&<div style={{background:C.greenLight,border:`1px solid ${C.greenBorder}`,borderRadius:"6px",padding:"10px 14px",marginBottom:"16px",fontSize:"13px",color:C.green,fontWeight:"bold"}}>✓ Session logged</div>}
+      {recent.length>0&&(
+        <div>
+          <div style={{fontSize:"12px",letterSpacing:"2px",color:C.cyan,textTransform:"uppercase",fontWeight:"bold",marginBottom:"12px"}}>Recent Cardio</div>
+          {recent.map((e,i)=>(
+            <div key={i} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"14px",marginBottom:"10px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"8px"}}>
+                <div style={{fontSize:"15px",fontWeight:"bold",color:C.white}}>{e.type}</div>
+                <div style={{fontSize:"11px",color:C.textMuted}}>{e.date}</div>
+              </div>
+              <div style={{display:"flex",gap:"14px",flexWrap:"wrap"}}>
+                {e.duration&&<div style={{fontSize:"12px",color:C.textMid}}><span style={{color:C.cyan,fontWeight:"bold"}}>{e.duration}</span> min</div>}
+                {e.avgHR&&<div style={{fontSize:"12px",color:C.textMid}}>Avg <span style={{color:C.cyan,fontWeight:"bold"}}>{e.avgHR}</span> bpm</div>}
+                {e.calories&&<div style={{fontSize:"12px",color:C.textMid}}><span style={{color:C.cyan,fontWeight:"bold"}}>{e.calories}</span> cal</div>}
+              </div>
+              {e.notes&&<div style={{fontSize:"12px",color:C.textMuted,marginTop:"6px",fontStyle:"italic"}}>{e.notes}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── BODY COMP ENTRY (editable) ───────────────────────────────────
+function BodyCompEntry({entry,origIdx,onSave,onDelete}){
+  const[editing,setEditing]=useState(false);
+  const[wt,setWt]=useState(String(entry.weight||""));
+  const[bf,setBf]=useState(String(entry.bf||""));
+  function save(){onSave(origIdx,{...entry,weight:parseFloat(wt)||entry.weight,bf:bf?parseFloat(bf):null});setEditing(false);}
+  function cancel(){setWt(String(entry.weight||""));setBf(String(entry.bf||""));setEditing(false);}
+  if(editing)return(
+    <div style={{padding:"12px 0",borderBottom:`1px solid ${C.border}`}}>
+      <div style={{fontSize:"11px",color:C.cyan,letterSpacing:"1px",textTransform:"uppercase",fontWeight:"bold",marginBottom:"10px"}}>{entry.date} — Editing</div>
+      <div style={{display:"flex",gap:"8px",marginBottom:"10px"}}>
+        <div style={{flex:1}}><div style={{fontSize:"10px",color:C.textMuted,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"4px",fontWeight:"bold"}}>Weight (lbs)</div><input type="number" value={wt} onChange={e=>setWt(e.target.value)} style={{width:"100%"}}/></div>
+        <div style={{flex:1}}><div style={{fontSize:"10px",color:C.textMuted,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"4px",fontWeight:"bold"}}>Body Fat %</div><input type="number" value={bf} onChange={e=>setBf(e.target.value)} style={{width:"100%"}}/></div>
+      </div>
+      <div style={{display:"flex",gap:"8px"}}>
+        <button onClick={save} style={{flex:1,padding:"10px",background:C.cyan,border:"none",borderRadius:"6px",color:C.bg,fontSize:"12px",fontWeight:"bold",letterSpacing:"1px",textTransform:"uppercase"}}>SAVE</button>
+        <button onClick={cancel} style={{flex:1,padding:"10px",background:"transparent",border:`1.5px solid ${C.borderMid}`,borderRadius:"6px",color:C.textMuted,fontSize:"12px",fontWeight:"bold",letterSpacing:"1px",textTransform:"uppercase"}}>CANCEL</button>
+        <button onClick={()=>onDelete(origIdx)} style={{padding:"10px 14px",background:C.redLight,border:`1.5px solid ${C.redBorder}`,borderRadius:"6px",color:C.red,fontSize:"12px",fontWeight:"bold"}}>✕</button>
+      </div>
+    </div>
+  );
+  return(
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
+      <div style={{fontSize:"13px",color:C.textMid,fontWeight:"500"}}>{entry.date}</div>
+      <div style={{display:"flex",gap:"14px",alignItems:"center"}}>
+        <div style={{fontSize:"15px",fontWeight:"bold",color:C.white}}>{entry.weight}<span style={{fontSize:"11px",color:C.textFaint}}> lbs</span></div>
+        {entry.bf&&<div style={{fontSize:"15px",fontWeight:"bold",color:C.cyan}}>{entry.bf}<span style={{fontSize:"11px",color:C.textFaint}}>%</span></div>}
+        <button onClick={()=>setEditing(true)} style={{background:"transparent",border:`1.5px solid ${C.borderMid}`,borderRadius:"6px",padding:"5px 10px",color:C.textMuted,fontSize:"11px",fontWeight:"bold",letterSpacing:"1px"}}>EDIT</button>
+      </div>
+    </div>
+  );
+}
+
+// ── BODY COMP VIEW ───────────────────────────────────────────────
+function BodyCompView({phase}){
+  const[log,setLog]=useState(()=>LS.get("tm_bodycomp")||[]);
+  const[wt,setWt]=useState("");const[bf,setBf]=useState("");const[note,setNote]=useState("");
+  const[neck,setNeck]=useState("");const[waist,setWaist]=useState("");const[height,setHeight]=useState("");const[navyBF,setNavyBF]=useState("");
+
+  function calcNavyBF(){
+    const n=parseFloat(neck),w=parseFloat(waist),h=parseFloat(height);
+    if(!n||!w||!h||w<=n)return;
+    const result=(86.010*Math.log10(w-n)-70.041*Math.log10(h)+36.76).toFixed(1);
+    setNavyBF(result);setBf(result);
+  }
+  function addEntry(){
+    if(!wt)return;
+    const entry={date:new Date().toLocaleDateString(),weight:parseFloat(wt),bf:bf?parseFloat(bf):null,note};
+    const newLog=[...log,entry];setLog(newLog);LS.set("tm_bodycomp",newLog);
+    setWt("");setBf("");setNote("");
+  }
+  function saveEntry(idx,updated){const nl=[...log];nl[nl.length-1-idx]=updated;setLog(nl);LS.set("tm_bodycomp",nl);}
+  function deleteEntry(idx){const nl=[...log];nl.splice(nl.length-1-idx,1);setLog(nl);LS.set("tm_bodycomp",nl);}
+
+  const recent=[...log].slice(-10);
+  const minW=recent.length?Math.min(...recent.map(e=>e.weight))-5:180;
+  const maxW=recent.length?Math.max(...recent.map(e=>e.weight))+5:230;
+
+  return(
+    <div style={{padding:"0 18px 40px"}}>
+      <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"18px",marginBottom:"14px"}}>
+        <div style={{fontSize:"10px",letterSpacing:"2px",color:C.cyan,textTransform:"uppercase",fontWeight:"bold",marginBottom:"4px"}}>Navy BF% Calculator</div>
+        <div style={{fontSize:"11px",color:C.textFaint,marginBottom:"14px"}}>Neck · Waist · Height in inches</div>
+        <div style={{display:"flex",gap:"8px",marginBottom:"12px"}}>
+          {[["Neck (in)",neck,setNeck,"15.5"],["Waist (in)",waist,setWaist,"34.0"],["Height (in)",height,setHeight,"71"]].map(([lbl,val,set,ph])=>(
+            <div key={lbl} style={{flex:1}}>
+              <div style={{fontSize:"10px",color:C.textFaint,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"5px"}}>{lbl}</div>
+              <input type="number" placeholder={ph} value={val} onChange={e=>set(e.target.value)} style={{width:"100%"}}/>
+            </div>
+          ))}
+        </div>
+        <button onClick={calcNavyBF} style={{width:"100%",padding:"12px",background:C.cyan,border:"none",borderRadius:"6px",color:C.bg,fontSize:"11px",fontWeight:"bold",letterSpacing:"2px",textTransform:"uppercase",marginBottom:navyBF?"12px":"0"}}>CALCULATE</button>
+        {navyBF&&<div style={{background:C.blueLight,border:`1px solid ${C.blueBorder}`,borderLeft:`3px solid ${C.cyan}`,borderRadius:"6px",padding:"12px 14px"}}>
+          <div style={{fontSize:"10px",letterSpacing:"2px",color:C.cyan,textTransform:"uppercase",marginBottom:"3px",fontWeight:"bold"}}>Navy Method Result</div>
+          <div style={{fontSize:"26px",fontWeight:"bold",color:C.white}}>{navyBF}% <span style={{fontSize:"13px",color:C.textMuted,fontWeight:"normal"}}>body fat</span></div>
+        </div>}
+      </div>
+
+      <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"18px",marginBottom:"24px"}}>
+        <div style={{fontSize:"10px",letterSpacing:"2px",color:C.cyan,textTransform:"uppercase",fontWeight:"bold",marginBottom:"14px"}}>Log Today</div>
+        <div style={{display:"flex",gap:"8px",marginBottom:"12px"}}>
+          <div style={{flex:1}}><div style={{fontSize:"10px",color:C.textFaint,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"5px"}}>Weight (lbs)</div><input type="number" placeholder="217" value={wt} onChange={e=>setWt(e.target.value)} style={{width:"100%"}}/></div>
+          <div style={{flex:1}}><div style={{fontSize:"10px",color:C.textFaint,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"5px"}}>Body Fat %</div><input type="number" placeholder="23.5" value={bf} onChange={e=>setBf(e.target.value)} style={{width:"100%"}}/></div>
+        </div>
+        <button onClick={addEntry} style={{width:"100%",padding:"14px",background:C.cyan,border:"none",borderRadius:"6px",color:C.bg,fontSize:"11px",fontWeight:"bold",letterSpacing:"2px",textTransform:"uppercase"}}>LOG ENTRY</button>
+      </div>
+
+      {recent.length>=2&&(()=>{
+        const W=320;const H=120;const PAD=20;const chartW=W-PAD*2;const chartH=H-PAD*2;
+        return(<div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"18px",marginBottom:"20px",overflowX:"auto"}}>
+          <div style={{fontSize:"10px",letterSpacing:"2px",color:C.textFaint,textTransform:"uppercase",fontWeight:"bold",marginBottom:"14px"}}>Weight Trend</div>
+          <svg width={W} height={H}>
+            {recent.map((e,i)=>{const x=PAD+(i/(recent.length-1))*chartW;const y=PAD+chartH-((e.weight-minW)/(maxW-minW))*chartH;return<circle key={i} cx={x} cy={y} r={4} fill={C.cyan}/>;  })}
+            {recent.slice(1).map((e,i)=>{const x1=PAD+(i/(recent.length-1))*chartW;const y1=PAD+chartH-((recent[i].weight-minW)/(maxW-minW))*chartH;const x2=PAD+((i+1)/(recent.length-1))*chartW;const y2=PAD+chartH-((e.weight-minW)/(maxW-minW))*chartH;return<line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={C.cyan} strokeWidth={2} opacity={0.6}/>;  })}
+          </svg>
+        </div>);
+      })()}
+
+      {log.length>0&&(
+        <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"18px"}}>
+          <div style={{fontSize:"10px",letterSpacing:"2px",color:C.textFaint,textTransform:"uppercase",fontWeight:"bold",marginBottom:"14px"}}>Log History</div>
+          {[...log].reverse().slice(0,10).map((e,i)=>(
+            <BodyCompEntry key={i} entry={e} origIdx={i} onSave={saveEntry} onDelete={deleteEntry}/>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── CSV EXPORT ───────────────────────────────────────────────────
+function exportCSV(sessionLog,readinessLog,bodyCompLog,week,substitutions){
+  const rows=[["RAYMOND — TACTICAL MONSTER PROTOCOL"],["Exported:",new Date().toLocaleDateString()],["Week:",week],[]];
+  rows.push(["SESSION LOG"]);
+  rows.push(["Exercise","Week","Set","Weight (lbs)","Reps","RIR","Note"]);
+  DAY_ORDER.forEach(day=>{
+    const s=PROGRAM.find(p=>p.day===day);if(!s)return;
+    (s.groups||[]).flatMap(g=>g.exercises||[]).forEach(origEx=>{
+      if(origEx.lockedSets===0)return;
+      const slot=resolveSlot(origEx,week,substitutions);
+      const log=sessionLog[slot.logKey]||[];
+      const note=slot.isSub?("Replaced from "+slot.origName):"";
+      log.forEach((st,i)=>{if(st&&st.weight)rows.push([slot.ex.name,week,"Set "+(i+1),st.weight,st.reps||"",st.rir||"",note]);});
+    });
+  });
+  rows.push([]);
+  rows.push(["READINESS LOG"]);rows.push(["Date","Score","Tier"]);
+  Object.entries(readinessLog).forEach(([date,entry])=>{rows.push([date,entry.score,entry.tier]);});
+  rows.push([]);
+  rows.push(["BODY COMPOSITION LOG"]);rows.push(["Date","Weight (lbs)","Body Fat %"]);
+  (bodyCompLog||[]).forEach(entry=>{rows.push([entry.date,entry.weight,entry.bf||""]);});
+  const csv=rows.map(r=>r.map(cell=>`"${String(cell||"").replace(/"/g,'""')}"`).join(",")).join("\n");
+  const blob=new Blob([csv],{type:"text/csv"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;a.download=`raymond_tm_week${week}_${new Date().toISOString().split("T")[0]}.csv`;a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── MAIN APP ─────────────────────────────────────────────────────
+function App(){
+  const[view,setView]=useState("session");
+  const[activeDay,setActiveDay]=useState("MON");
+  const[week,setWeek]=useState(()=>LS.get("tm_week")||1);
+  const[sessionLog,setSessionLog]=useState(()=>LS.get("tm_log")||{});
+  const[completed,setCompleted]=useState(()=>LS.get("tm_completed")||{});
+  const[readinessLog,setReadinessLog]=useState(()=>LS.get("tm_readiness")||{});
+  const[condLog,setCondLog]=useState(()=>LS.get("tm_cond")||{});
+  const[bandLog,setBandLog]=useState(()=>LS.get("tm_bands")||{});
+  const[cardioLog,setCardioLog]=useState(()=>LS.get("tm_cardio")||[]);
+  const[variantSelections,setVariantSelections]=useState(()=>LS.get("tm_variants")||{});
+  const[substitutions,setSubstitutions]=useState(()=>LS.get("tm_substitutions")||{});
+  const[replaceEx,setReplaceEx]=useState(null);
+  const[pickerEx,setPickerEx]=useState(null);
+  const[pickerSide,setPickerSide]=useState(null);
+  const[screenFlash,setScreenFlash]=useState(false);
+  const[ri,setRi]=useState({bodyBattery:70,sleepScore:75,trainingReadiness:65,hrv:"balanced",restingHR:"at",soreness:2,motivation:8});
+  const[todayScore,setTodayScore]=useState(null);
+  const[showSummary,setShowSummary]=useState(false);
+  const[milestones,setMilestones]=useState(()=>LS.get("tm_milestones")||{totalSessions:0,lastMilestone:0});
+
+  const phase=getPhase(week);
+  const session=PROGRAM.find(d=>d.day===activeDay)||PROGRAM[0];
+  const today=new Date().toDateString();
+  const isComplete=!!completed[activeDay+"_w"+week];
+  globalFlashFn=()=>{setScreenFlash(true);setTimeout(()=>setScreenFlash(false),3500);};
+
+  function setWeekSave(w){setWeek(w);LS.set("tm_week",w);}
+  function handleLog(key,si,field,val){
+    const curr=sessionLog[key]||[];
+    const upd=[...curr];if(!upd[si])upd[si]={};upd[si][field]=val;
+    const nl={...sessionLog,[key]:upd};setSessionLog(nl);LS.set("tm_log",nl);
+  }
+  function markComplete(){
+    if(isComplete)return;
+    const k=activeDay+"_w"+week;
+    const nc={...completed,[k]:{date:today,ts:Date.now()}};setCompleted(nc);LS.set("tm_completed",nc);
+    const newTotal=(milestones.totalSessions||0)+1;
+    const nm={...milestones,totalSessions:newTotal};setMilestones(nm);LS.set("tm_milestones",nm);
+    setShowSummary(true);
+  }
+  function handleReadiness(){
+    const score=scoreReadiness(ri);
+    const entry={score,tier:getTier(score).tier,date:today};
+    const nl={...readinessLog,[today]:entry};setReadinessLog(nl);setTodayScore(score);LS.set("tm_readiness",nl);
+  }
+  function handleCondLog(key,val){const nl={...condLog,[key]:val};setCondLog(nl);LS.set("tm_cond",nl);}
+  function handleBandLog(key,val){const nl={...bandLog,[key]:val};setBandLog(nl);LS.set("tm_bands",nl);}
+  function handleCardioLog(log){setCardioLog(log);LS.set("tm_cardio",log);}
+  function handleVariantSelect(exId,variantKey){
+    const nl=variantKey?{...variantSelections,[exId]:variantKey}:Object.fromEntries(Object.entries({...variantSelections}).filter(([k])=>k!==exId));
+    setVariantSelections(nl);LS.set("tm_variants",nl);
+  }
+  const handleAltSelect=handleVariantSelect;
+
+  // Per-week substitution. Key = originalExId_w{week}. Stores {subId}.
+  function subKey(exId){return exId+"_w"+week;}
+  function handleReplaceSelect(originalExId,replacementEx){
+    const nl={...substitutions,[subKey(originalExId)]:{subId:replacementEx.id,origId:originalExId}};
+    setSubstitutions(nl);LS.set("tm_substitutions",nl);
+    // Clear any variant selection carried from the original slot
+    handleVariantSelect(originalExId,null);
+    setReplaceEx(null);
+  }
+  function handleRevertSub(originalExId){
+    const nl=Object.fromEntries(Object.entries({...substitutions}).filter(([k])=>k!==subKey(originalExId)));
+    setSubstitutions(nl);LS.set("tm_substitutions",nl);
+    handleVariantSelect(originalExId,null);
+  }
+
+  const sectionLabel={fontSize:"12px",letterSpacing:"2px",color:C.cyan,textTransform:"uppercase",fontWeight:"bold",marginBottom:"10px",display:"block"};
+
+  // Bottom nav tabs
+  const TABS=[
+    {id:"session",label:"SESSION",icon:"💪"},
+    {id:"cardio",label:"CARDIO",icon:"🏃"},
+    {id:"readiness",label:"READY",icon:"⚡"},
+    {id:"tracker",label:"TRACK",icon:"📊"},
+    {id:"bodycomp",label:"BODY",icon:"⚖️"},
+    {id:"library",label:"LIBRARY",icon:"📚"},
+  ];
+
+  return(
+    <>
+    <div style={{minHeight:"100vh",background:screenFlash?"#002A35":C.bg,color:C.white,paddingBottom:"72px",transition:screenFlash?"background 0.05s":"background 0.4s"}}>
+
+      {/* ── TOP HEADER ── */}
+      <div style={{background:C.surfaceMid,borderBottom:`2px solid ${C.cyan}`,padding:"14px 18px 0",position:"sticky",top:0,zIndex:20}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"10px"}}>
+          <div>
+            <div style={{fontSize:"10px",letterSpacing:"4px",color:C.textFaint,textTransform:"uppercase",marginBottom:"2px",fontWeight:"bold"}}>AmFam Swift Creek</div>
+            <div style={{fontSize:"18px",fontWeight:"bold",letterSpacing:"1px",color:C.white}}>TACTICAL MONSTER</div>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:"4px"}}>
+            <div style={{fontSize:"10px",color:C.textFaint,letterSpacing:"2px",textTransform:"uppercase",fontWeight:"bold"}}>WEEK</div>
+            <div style={{display:"flex",gap:"3px",flexWrap:"wrap",justifyContent:"flex-end"}}>
+              {[...Array(16)].map((_,i)=>{
+                const wk=i+1;const isA=week===wk;
+                const wc=[C.gold,"#FF6B6B",C.cyan,C.green][getPhaseIdxFromWeek(wk)];
+                return(<div key={i} onClick={()=>setWeekSave(wk)} style={{width:"22px",height:"22px",borderRadius:"4px",display:"flex",alignItems:"center",justifyContent:"center",background:isA?wc:"transparent",border:`1.5px solid ${isA?wc:C.borderMid}`,color:isA?C.bg:C.textMuted,fontSize:"10px",fontWeight:"bold",cursor:"pointer"}}>{wk}</div>);
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Phase banner */}
+        <div style={{background:C.goldLight,border:`1.5px solid ${C.goldBorder}`,borderLeft:`4px solid ${C.gold}`,borderRadius:"6px",padding:"8px 12px",marginBottom:"10px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <div style={{fontSize:"10px",letterSpacing:"2px",color:C.gold,textTransform:"uppercase",fontWeight:"bold"}}>CYCLE {phase.cycleNum} — {phase.focus}</div>
+              <div style={{fontSize:"13px",color:C.white,marginTop:"1px",fontWeight:"bold"}}>RPE {phase.rpe} · {phase.sets} sets · {phase.reps}</div>
+            </div>
+            <div style={{fontSize:"11px",color:C.textMid,maxWidth:"120px",textAlign:"right",lineHeight:1.4}}>{phase.note}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* ══ SESSION VIEW ══ */}
+      {view==="session"&&(
+        <div>
+          <div style={{padding:"12px 18px",background:C.surfaceMid,borderBottom:`1px solid ${C.border}`,display:"flex",gap:"6px"}}>
+            {DAY_ORDER.map(d=>{
+              const done=!!completed[d+"_w"+week];const isA=activeDay===d;
+              return(
+                <button key={d} onClick={()=>setActiveDay(d)} style={{flex:1,padding:"10px 4px",background:isA?C.cyan:"transparent",border:`1.5px solid ${isA?C.cyan:done?C.green:C.borderMid}`,borderRadius:"6px",color:isA?C.bg:done?C.green:C.textMid,fontSize:"11px",fontWeight:"bold",letterSpacing:"1px",textTransform:"uppercase"}}>
+                  {done&&!isA?"✓":d}
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{padding:"18px 18px 14px",background:"rgba(0,212,255,0.03)",borderBottom:`1px solid ${C.border}`}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+              <div>
+                <div style={{fontSize:"24px",fontWeight:"bold",color:session.color||C.cyan,lineHeight:1.1}}>{session.label}</div>
+                <div style={{fontSize:"13px",color:C.textMid,marginTop:"3px"}}>{session.tag}</div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                {session.tag&&session.tag.toLowerCase().includes("metabolic")&&<div style={{fontSize:"11px",color:"#FF8C42",fontWeight:"bold",letterSpacing:"1px",marginBottom:"4px"}}>HIGH DEMAND</div>}
+                {isComplete&&<div style={{fontSize:"11px",color:C.green,fontWeight:"bold",letterSpacing:"1px"}}>✓ COMPLETE</div>}
+              </div>
+            </div>
+          </div>
+
+          {/* Warm-up */}
+          <div style={{padding:"14px 18px",borderBottom:`1px solid ${C.border}`,background:"rgba(0,0,0,0.2)"}}>
+            <div style={sectionLabel}>Warm-Up Protocol</div>
+            {session.warmup.map((item,i)=>(
+              <div key={i} style={{padding:"9px 0",borderBottom:i<session.warmup.length-1?`1px solid ${C.border}`:"none"}}>
+                <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"3px"}}>
+                  <span style={{fontSize:"10px",letterSpacing:"1px",color:C.bg,background:item.equipment==="BAND"?C.gold:item.equipment==="CABLE"?C.cyan:item.equipment==="BARBELL"?"#FF8C42":C.green,padding:"2px 7px",borderRadius:"3px",fontWeight:"bold",flexShrink:0}}>{item.equipment}</span>
+                  <span style={{fontSize:"14px",fontWeight:"bold",color:C.white}}>{item.item}</span>
+                </div>
+                <div style={{fontSize:"12px",color:C.textMid,lineHeight:1.5}}>{item.notes}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Exercise Groups */}
+          <div style={{padding:"0 18px",background:"rgba(0,0,0,0.1)"}}>
+            {(session.groups||[]).map((group,gi)=>{
+              const isGrouped=group.type!=="standalone";
+              const groupColors={superset:C.cyan,giant:C.gold};
+              const groupColor=groupColors[group.type]||C.cyan;
+              return(
+                <div key={gi} style={{marginBottom:"14px",paddingTop:"14px"}}>
+                  {isGrouped&&(
+                    <div style={{display:"flex",alignItems:"flex-start",gap:"8px",marginBottom:"8px",flexWrap:"wrap"}}>
+                      <div style={{fontSize:"9px",fontWeight:"bold",letterSpacing:"2px",textTransform:"uppercase",color:groupColor,background:groupColor+"18",border:`1px solid ${groupColor}40`,borderRadius:"4px",padding:"3px 8px",flexShrink:0}}>
+                        {group.label} — {group.type==="giant"?"GIANT SET":"SUPERSET"}
+                      </div>
+                      {group.groupNote&&<div style={{fontSize:"11px",color:C.textMuted,lineHeight:1.4,flex:1,minWidth:"160px"}}>{group.groupNote}</div>}
+                    </div>
+                  )}
+                  <div style={isGrouped?{border:`1px solid ${groupColor}30`,borderRadius:"8px",padding:"10px 10px 4px",background:groupColor+"06"}:{}}>
+                    {group.exercises.map((ex,ei)=>(
+                      <ExerciseRow key={ex.id} ex={ex} week={week} phase={phase}
+                        sessionLog={sessionLog} onLog={handleLog}
+                        bandLog={bandLog} onBandLog={handleBandLog}
+                        variantSelections={variantSelections} onVariantSelect={handleVariantSelect}
+                        onOpenPicker={(ex,side)=>{setPickerEx(ex);setPickerSide(side||null);}}
+                        onOpenReplace={(origEx)=>setReplaceEx(origEx)}
+                        substitution={substitutions[ex.id+"_w"+week]||null}
+                        onRevertSub={handleRevertSub}
+                        groupType={group.type} isLast={ei===group.exercises.length-1}/>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Footer actions */}
+          <div style={{padding:"14px 18px"}}>
+            {session.conditioning&&(
+              <ExpandCard label="CONDITIONING" sublabel={phase.type==="strength"?"10 MIN — Full Block":"5 MIN"}>
+                <ConditioningTracker sessionKey={activeDay+"_w"+week} condLog={condLog} onCondLog={handleCondLog} options={session.conditioning.options} phaseType={phase.type}/>
+              </ExpandCard>
+            )}
+            {session.cooldown&&(
+              <ExpandCard label="COOL-DOWN" sublabel="Post-Session Protocol">
+                <div style={{fontSize:"14px",color:C.textMid,lineHeight:1.7}}>{session.cooldown}</div>
+              </ExpandCard>
+            )}
+            <ExpandCard label="STANDING RULES" sublabel="Program Constraints">
+              {PROGRAM_NOTES.map((note,i)=>(
+                <div key={i} style={{display:"flex",gap:"10px",marginBottom:"8px",alignItems:"flex-start"}}>
+                  <div style={{color:C.red,fontWeight:"bold",fontSize:"12px",flexShrink:0,marginTop:"1px"}}>—</div>
+                  <div style={{fontSize:"13px",color:C.textMid,lineHeight:1.5}}>{note}</div>
+                </div>
+              ))}
+            </ExpandCard>
+            <button onClick={markComplete} disabled={isComplete} style={{width:"100%",padding:"16px",background:isComplete?C.greenLight:C.cyan,border:`1.5px solid ${isComplete?C.green:C.cyan}`,borderRadius:"8px",color:isComplete?C.green:C.bg,fontSize:"13px",fontWeight:"bold",letterSpacing:"2px",textTransform:"uppercase",marginTop:"6px"}}>
+              {isComplete?"✓ SESSION COMPLETE":"MARK SESSION COMPLETE"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ══ CARDIO VIEW ══ */}
+      {view==="cardio"&&(
+        <div style={{padding:"20px 18px"}}>
+          <div style={sectionLabel}>Cardio Log</div>
+          <CardioLogView cardioLog={cardioLog} onCardioLog={handleCardioLog}/>
+        </div>
+      )}
+
+      {/* ══ READINESS VIEW ══ */}
+      {view==="readiness"&&(
+        <div style={{padding:"20px 18px"}}>
+          <div style={sectionLabel}>Daily Readiness — 70 Point System</div>
+          {todayScore!==null&&(()=>{
+            const t=getTier(todayScore);
+            return(
+              <div style={{background:t.bg,border:`1.5px solid ${t.color}55`,borderLeft:`4px solid ${t.color}`,borderRadius:"8px",padding:"16px",marginBottom:"20px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div>
+                    <div style={{fontSize:"12px",letterSpacing:"2px",color:t.color,textTransform:"uppercase",fontWeight:"bold",marginBottom:"4px"}}>{t.tier} — {t.label}</div>
+                    <div style={{fontSize:"13px",color:C.textMid,lineHeight:1.5}}>{t.note}</div>
+                  </div>
+                  <div style={{fontSize:"40px",fontWeight:"bold",color:t.color}}>{todayScore}<span style={{fontSize:"14px",color:C.textFaint}}>/70</span></div>
+                </div>
+              </div>
+            );
+          })()}
+          {[{label:"Body Battery (Garmin)",key:"bodyBattery",ph:"0–100"},{label:"Sleep Score (Garmin)",key:"sleepScore",ph:"0–100"},{label:"Training Readiness (Garmin)",key:"trainingReadiness",ph:"0–100"}].map(f=>(
+            <div key={f.key} style={{background:C.surface,border:`1.5px solid ${C.borderMid}`,borderRadius:"8px",padding:"14px 16px",marginBottom:"10px"}}>
+              <div style={{fontSize:"12px",color:C.textMid,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"8px",fontWeight:"bold"}}>{f.label}</div>
+              <input type="number" placeholder={f.ph} value={ri[f.key]||""} onChange={e=>setRi({...ri,[f.key]:parseFloat(e.target.value)||0})} style={{textAlign:"left"}}/>
+            </div>
+          ))}
+          {[{label:"HRV Status",key:"hrv",opts:[["balanced","Balanced"],["favorable","Favorable"],["unbalanced","Unbalanced"],["poor","Poor"]]},{label:"Resting HR vs 30-Day Avg",key:"restingHR",opts:[["at","At / Below"],["1-3","1–3 Above"],["4-6","4–6 Above"],["7+","7+ Above"]]}].map(f=>(
+            <div key={f.key} style={{background:C.surface,border:`1.5px solid ${C.borderMid}`,borderRadius:"8px",padding:"14px 16px",marginBottom:"10px"}}>
+              <div style={{fontSize:"12px",color:C.textMid,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"10px",fontWeight:"bold"}}>{f.label}</div>
+              <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+                {f.opts.map(([val,lbl])=>(
+                  <button key={val} onClick={()=>setRi({...ri,[f.key]:val})} style={{flex:1,minWidth:"70px",padding:"10px 6px",background:ri[f.key]===val?C.cyan:"transparent",border:`1.5px solid ${ri[f.key]===val?C.cyan:C.borderMid}`,borderRadius:"6px",color:ri[f.key]===val?C.bg:C.textMid,fontSize:"12px",fontWeight:ri[f.key]===val?"bold":"normal"}}>{lbl}</button>
+                ))}
+              </div>
+            </div>
+          ))}
+          {[{label:"Soreness / Pain (0–10)",key:"soreness",hint:"0 = none · 10 = severe"},{label:"Motivation (0–10)",key:"motivation",hint:"0 = none · 10 = fired up"}].map(f=>(
+            <div key={f.key} style={{background:C.surface,border:`1.5px solid ${C.borderMid}`,borderRadius:"8px",padding:"14px 16px",marginBottom:"10px"}}>
+              <div style={{fontSize:"12px",color:C.textMid,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"3px",fontWeight:"bold"}}>{f.label}</div>
+              <div style={{fontSize:"11px",color:C.textFaint,marginBottom:"10px",fontWeight:"500"}}>{f.hint}</div>
+              <input type="number" placeholder="0–10" min={0} max={10} value={ri[f.key]||""} onChange={e=>setRi({...ri,[f.key]:parseFloat(e.target.value)||0})} style={{textAlign:"left"}}/>
+            </div>
+          ))}
+          <button onClick={handleReadiness} style={{width:"100%",padding:"16px",background:C.cyan,border:"none",borderRadius:"8px",color:C.bg,fontSize:"13px",fontWeight:"bold",letterSpacing:"2px",textTransform:"uppercase",marginBottom:"24px"}}>CALCULATE READINESS</button>
+          {todayScore!==null&&(()=>{
+            const inputs=[["Body Battery",parseFloat((ri.bodyBattery/10).toFixed(1))],["Sleep Score",parseFloat((ri.sleepScore/10).toFixed(1))],["Training Readiness",parseFloat((ri.trainingReadiness/10).toFixed(1))],["HRV Status",({balanced:10,favorable:7,unbalanced:4,poor:1})[ri.hrv]||5],["Resting HR",({at:10,"1-3":7,"4-6":4,"7+":1})[ri.restingHR]||5],["Soreness",parseFloat((10-ri.soreness).toFixed(1))],["Motivation",parseFloat(ri.motivation.toFixed(1))]];
+            return(
+              <div style={{background:C.surface,border:`1.5px solid ${C.borderMid}`,borderRadius:"8px",padding:"16px",marginBottom:"24px"}}>
+                <div style={sectionLabel}>Score Breakdown</div>
+                {inputs.map(([label,score])=>(
+                  <div key={label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:`1px solid ${C.border}`}}>
+                    <div style={{fontSize:"13px",color:C.textMid,fontWeight:"500"}}>{label}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+                      <div style={{width:"80px",height:"5px",background:"rgba(255,255,255,0.06)",borderRadius:"2px",overflow:"hidden"}}>
+                        <div style={{width:`${(score/10)*100}%`,height:"100%",background:score>=7?C.green:score>=4?C.cyan:"#FF4444",borderRadius:"2px"}}/>
+                      </div>
+                      <div style={{fontSize:"16px",fontWeight:"bold",color:score>=7?C.green:score>=4?C.cyan:"#FF4444",minWidth:"28px",textAlign:"right"}}>{score}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+          {Object.keys(readinessLog).length>0&&(
+            <div>
+              <div style={sectionLabel}>Recent History</div>
+              {Object.entries(readinessLog).slice(-5).reverse().map(([date,entry])=>{
+                const t=getTier(entry.score);
+                return(
+                  <div key={date} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:`1px solid ${C.border}`}}>
+                    <div style={{fontSize:"13px",color:C.textMid,fontWeight:"500"}}>{date}</div>
+                    <div style={{display:"flex",gap:"14px",alignItems:"center"}}>
+                      <div style={{fontSize:"11px",color:t.color,letterSpacing:"1px",fontWeight:"bold"}}>{entry.tier}</div>
+                      <div style={{fontSize:"17px",color:t.color,fontWeight:"bold"}}>{entry.score}<span style={{fontSize:"11px",color:C.textFaint}}>/70</span></div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══ TRACKER VIEW ══ */}
+      {view==="tracker"&&(
+        <div style={{padding:"20px 18px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"20px"}}>
+            <div style={sectionLabel}>Week {week} — {phase.focus}</div>
+            <button onClick={()=>exportCSV(sessionLog,readinessLog,LS.get("tm_bodycomp")||[],week,substitutions)} style={{background:C.surfaceMid,border:`1.5px solid ${C.borderMid}`,borderRadius:"6px",padding:"10px 16px",color:C.white,fontSize:"11px",letterSpacing:"1px",textTransform:"uppercase",fontWeight:"bold"}}>⬇ CSV</button>
+          </div>
+          <div style={{background:C.surface,border:`1.5px solid ${C.borderMid}`,borderRadius:"8px",padding:"16px",marginBottom:"22px"}}>
+            <div style={sectionLabel}>Session Completion</div>
+            <div style={{display:"flex",gap:"6px"}}>
+              {DAY_ORDER.map(d=>{
+                const done=!!completed[d+"_w"+week];
+                return(<div key={d} style={{flex:1,textAlign:"center",padding:"12px 4px",borderRadius:"6px",background:done?C.greenLight:C.surface,border:`1.5px solid ${done?C.green:C.border}`,fontSize:"11px",fontWeight:"bold",color:done?C.green:C.textFaint}}>{done?"✓":d}</div>);
+              })}
+            </div>
+            <div style={{fontSize:"12px",color:C.textMuted,marginTop:"10px",textAlign:"center"}}>Total sessions: {milestones.totalSessions||0}</div>
+          </div>
+
+          {/* Recovery section in tracker */}
+          <div style={{background:C.surface,border:`1.5px solid ${C.borderMid}`,borderRadius:"8px",padding:"16px",marginBottom:"22px"}}>
+            <div style={sectionLabel}>Muscle Recovery</div>
+            <RecoveryView sessionLog={sessionLog} completedLog={completed}/>
+          </div>
+
+          {/* Progressive overload per exercise */}
+          {DAY_ORDER.map(d=>{
+            const s=PROGRAM.find(p=>p.day===d);
+            return(
+              <div key={d} style={{marginBottom:"24px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"10px",paddingBottom:"8px",borderBottom:`2px solid ${C.cyanBorder}`}}>
+                  <div style={{fontSize:"11px",letterSpacing:"3px",color:C.cyan,textTransform:"uppercase",fontWeight:"bold"}}>{s.day} — {s.label}</div>
+                </div>
+                {(s.groups||[]).flatMap(g=>g.exercises||[]).filter(ex=>ex.id&&ex.lockedSets!==0).map(origEx=>{
+                  const slot=resolveSlot(origEx,week,substitutions);
+                  const ex=slot.ex;
+                  const variantKey=variantSelections[ex.id]||null;
+                  const logA=sessionLog[slot.logKey]||[];
+                  const done=(logA||[]).filter(s=>s&&s.weight&&s.reps);
+                  const prog=checkProgression(logA,getPhaseRepRange(ex,phase)||ex.reps||"10–12");
+                  const ps=getPhaseSets(null,phase.type,ex,phase.sets);
+                  const{max}=parseRange(ex.reps||phase.reps||"10–12");
+                  const best1RM=done.length?Math.max(...done.map(s=>calc1RM(parseFloat(s.weight)||0,parseInt(s.reps)||0))):0;
+                  return(
+                    <div key={ex.id} style={{marginBottom:"10px",background:C.surface,border:`1.5px solid ${slot.isSub?C.goldBorder:C.border}`,borderRadius:"8px",padding:"13px 15px"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"6px"}}>
+                        <div style={{fontSize:"14px",fontWeight:"bold",color:C.white,maxWidth:"220px",lineHeight:1.3}}>
+                          {(()=>{const vk=variantSelections[ex.id];const vd=vk&&ex.variants?ex.variants[vk]:null;
+                            if(slot.isSub)return(<><span style={{color:C.gold}}>{vd?vd.name:ex.name}</span><span style={{fontSize:"11px",color:C.textFaint,fontWeight:"normal",display:"block"}}>↺ Replaced from: {slot.origName}</span></>);
+                            if(vd)return(<><span style={{color:C.cyan}}>{vd.name}</span><span style={{fontSize:"11px",color:C.textFaint,fontWeight:"normal",display:"block"}}>Variant of: {ex.name}</span></>);
+                            return<>{ex.name}</>;})()} 
+                        </div>
+                        {prog&&<span style={{fontSize:"9px",letterSpacing:"1px",background:C.green,color:C.bg,padding:"3px 8px",borderRadius:"3px",fontWeight:"bold",whiteSpace:"nowrap"}}>↑ ADD WEIGHT</span>}
+                      </div>
+                      <div style={{fontSize:"12px",color:C.textMuted,marginBottom:"8px",fontWeight:"500"}}>{ps} × {ex.reps||phase.reps} · {phase.focus}{best1RM>0?` · Est 1RM: ${best1RM}lbs`:""}</div>
+                      {done.length>0?(
+                        <div style={{display:"flex",gap:"5px",flexWrap:"wrap"}}>
+                          {done.map((set,si)=>(
+                            <div key={si} style={{background:parseInt(set.reps)>=max?C.greenLight:C.surfaceMid,border:`1.5px solid ${parseInt(set.reps)>=max?C.greenBorder:C.border}`,borderRadius:"4px",padding:"4px 9px",fontSize:"12px",color:parseInt(set.reps)>=max?C.green:C.textMid,fontWeight:"bold"}}>
+                              {set.weight}lb×{set.reps}<span style={{color:C.textFaint,fontWeight:"normal"}}> @{set.rir}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ):<div style={{fontSize:"12px",color:C.textFaint,fontStyle:"italic"}}>Not logged this week</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ══ BODY COMP VIEW ══ */}
+      {view==="bodycomp"&&<BodyCompView phase={phase}/>}
+
+      {/* ══ LIBRARY VIEW ══ */}
+      {view==="library"&&(
+        <div style={{paddingTop:"16px"}}>
+          <ExerciseLibrary sessionLog={sessionLog} week={week} phase={phase}/>
+        </div>
+      )}
+    </div>
+
+    {/* ── BOTTOM NAV ── */}
+    <div style={{position:"fixed",bottom:0,left:0,right:0,background:C.surfaceMid,borderTop:`2px solid ${C.cyan}`,display:"flex",zIndex:30,paddingBottom:"env(safe-area-inset-bottom,0px)"}}>
+      {TABS.map(tab=>(
+        <button key={tab.id} onClick={()=>setView(tab.id)}
+          style={{flex:1,padding:"10px 2px 8px",background:"transparent",border:"none",borderTop:`2.5px solid ${view===tab.id?C.cyan:"transparent"}`,color:view===tab.id?C.cyan:C.textFaint,display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",transition:"color 0.2s"}}>
+          <div style={{fontSize:"16px",lineHeight:1}}>{tab.icon}</div>
+          <div style={{fontSize:"8px",letterSpacing:"1px",fontWeight:"bold",textTransform:"uppercase"}}>{tab.label}</div>
+        </button>
+      ))}
+    </div>
+
+    {/* ── VARIANT PICKER OVERLAY ── */}
+    {pickerEx&&(
+      <VariantPicker ex={pickerEx} side={pickerSide}
+        currentVariant={variantSelections[pickerEx.id]||null}
+        onSelect={(altId)=>{
+          const key=pickerEx.id;
+          handleAltSelect(key,altId);
+          setPickerEx(null);setPickerSide(null);
+        }}
+        onClose={()=>{setPickerEx(null);setPickerSide(null);}}/>
+    )}
+
+    {/* ── REPLACE EXERCISE OVERLAY ── */}
+    {replaceEx&&(
+      <ReplacePicker original={replaceEx}
+        onSelect={(replacement)=>handleReplaceSelect(replaceEx.id,replacement)}
+        onClose={()=>setReplaceEx(null)}/>
+    )}
+
+    {/* ── POST-WORKOUT SUMMARY ── */}
+    {showSummary&&(
+      <PostWorkoutSummary
+        session={session} week={week} sessionLog={sessionLog} phase={phase}
+        substitutions={substitutions}
+        totalSessionsCompleted={milestones.totalSessions||0}
+        onDismiss={()=>setShowSummary(false)}/>
+    )}
+    </>
+  );
+}
+
+const root=ReactDOM.createRoot(document.getElementById("root"));
+root.render(React.createElement(App));
+</script>
+</body>
+</html>
