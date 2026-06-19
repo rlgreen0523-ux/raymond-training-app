@@ -1,0 +1,1477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+  <meta name="theme-color" content="#003087"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Tactical Monster"/>
+  <title>Tactical Monster — Raymond</title>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{background:#00205B;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;-webkit-tap-highlight-color:transparent;}
+    input[type=number],input[type=text]{-webkit-appearance:none;appearance:none;background:#001A4A;border:1.5px solid #003FA0;border-radius:6px;padding:10px 10px;color:#FFFFFF;font-size:15px;width:100%;}
+    input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}
+    input[type=number]::placeholder,input[type=text]::placeholder{color:#6080B0;font-style:italic;}
+    input[type=number]:focus,input[type=text]:focus{outline:none;border-color:#FFC72C;box-shadow:0 0 0 2px rgba(255,199,44,0.2);}
+    textarea{-webkit-appearance:none;background:#001A4A;border:1.5px solid #003FA0;border-radius:6px;padding:10px;color:#FFFFFF;font-size:14px;width:100%;resize:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
+    textarea:focus{outline:none;border-color:#FFC72C;}
+    textarea::placeholder{color:#6080B0;font-style:italic;}
+    button{cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
+    ::-webkit-scrollbar{display:none;}
+    @keyframes flashGold{0%{background:#00205B;}30%{background:#3A5A00;}60%{background:#00205B;}90%{background:#3A5A00;}100%{background:#00205B;}}
+    .flash{animation:flashGold 1.2s ease-in-out 3;}
+  </style>
+  <script>
+  (function(){
+    try{
+      var c=document.createElement('canvas');c.width=c.height=180;
+      var ctx=c.getContext('2d');
+      // BA Navy rounded rect
+      var r=36;ctx.beginPath();ctx.moveTo(r,0);ctx.lineTo(180-r,0);
+      ctx.quadraticCurveTo(180,0,180,r);ctx.lineTo(180,180-r);
+      ctx.quadraticCurveTo(180,180,180-r,180);ctx.lineTo(r,180);
+      ctx.quadraticCurveTo(0,180,0,180-r);ctx.lineTo(0,r);
+      ctx.quadraticCurveTo(0,0,r,0);ctx.closePath();
+      ctx.fillStyle='#003087';ctx.fill();
+      // Gold divider
+      ctx.fillStyle='#FFC72C';ctx.fillRect(18,84,144,8);
+      // T gold top
+      ctx.fillStyle='#FFC72C';ctx.font='bold 90px Georgia,serif';
+      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('T',90,44);
+      // M white bottom
+      ctx.fillStyle='#FFFFFF';ctx.font='bold 74px Georgia,serif';
+      ctx.fillText('M',90,132);
+      var url=c.toDataURL('image/png');
+      var l1=document.createElement('link');l1.rel='apple-touch-icon';l1.href=url;document.head.appendChild(l1);
+      var l2=document.createElement('link');l2.rel='icon';l2.type='image/png';l2.href=url;document.head.appendChild(l2);
+    }catch(e){}
+  })();
+  </script>
+  <script>
+  (function(){
+    var m={name:"Tactical Monster",short_name:"Tactical Monster",start_url:"/",display:"standalone",background_color:"#00205B",theme_color:"#003087",orientation:"portrait"};
+    var b=new Blob([JSON.stringify(m)],{type:'application/json'});
+    var l=document.createElement('link');l.rel='manifest';l.href=URL.createObjectURL(b);document.head.appendChild(l);
+  })();
+  </script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useRef, useEffect } = React;
+
+const LS = {
+  get:(k)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch{return null;}},
+  set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}},
+  has:(k)=>{try{return localStorage.getItem(k)!==null;}catch{return false;}},
+};
+
+// ── DATA PERSISTENCE GUARD ────────────────────────────────────────
+// Runs once on load. Never overwrites existing user data.
+// Only initializes keys that don't exist yet (new installs or new features).
+(function persistenceGuard(){
+  const APP_VERSION = "v18";
+  const KEYS = {
+    "tm_log":{},       // session workout logs
+    "tm_completed":{}, // session completion timestamps
+    "tm_readiness":{}, // readiness score history
+    "tm_cond":{},      // conditioning selections
+    "tm_bands":{},     // band usage log
+    "tm_cardio":[],    // cardio session log
+    "tm_variants":{},  // equipment variant selections
+    "tm_bodycomp":[],  // body composition entries
+    "tm_week":1,       // current week
+  };
+  // Only set defaults for keys that don't exist — never touch existing data
+  Object.entries(KEYS).forEach(([k,defaultVal])=>{
+    if(!LS.has(k)) LS.set(k, defaultVal);
+  });
+  // Log version for debugging
+  LS.set("tm_app_version", APP_VERSION);
+})();
+
+// ── BLUE ANGELS COLOR PALETTE ─────────────────────────────────────
+const C = {
+  bg:         "#00205B",   // BA deep navy — body background
+  surface:    "#002878",   // slightly lighter navy — cards
+  surfaceMid: "#003087",   // BA official navy — headers
+  surfaceHi:  "#003FA0",   // mid navy — borders, inputs
+  gold:       "#FFC72C",   // BA gold
+  goldLight:  "rgba(255,199,44,0.15)",
+  goldBorder: "rgba(255,199,44,0.4)",
+  white:      "#FFFFFF",
+  offWhite:   "#E8EEF8",
+  textPrimary:"#FFFFFF",
+  textMid:    "#C8D8F0",
+  textMuted:  "#8AAAD0",
+  textFaint:  "#4A6A9A",
+  border:     "rgba(255,255,255,0.12)",
+  borderMid:  "rgba(255,255,255,0.22)",
+  green:      "#2ECC71",
+  greenLight: "rgba(46,204,113,0.15)",
+  greenBorder:"rgba(46,204,113,0.4)",
+  accent:     "#4A9EFF",   // highlight blue for active states
+};
+
+// ── PHASE CONFIG — 4-PHASE 2-WEEK ROTATION ──────────────────────
+const PHASES = [
+  {label:"Phase 1",weeks:"Weeks 1–2",focus:"Volume",     rpe:"6–7",sets:4,reps:"12–15",rir:"3–4 RIR",restNote:"60–75 sec", note:"High volume. Moderate load. Build work capacity.",   type:"volume"},
+  {label:"Phase 2",weeks:"Weeks 3–4",focus:"Strength",   rpe:"7–8",sets:5,reps:"5–8",  rir:"1–2 RIR",restNote:"120–180 sec",note:"Heavy compounds. Chase the number.",                type:"strength"},
+  {label:"Phase 3",weeks:"Weeks 5–6",focus:"Hypertrophy",rpe:"7–8",sets:4,reps:"8–12", rir:"2–3 RIR",restNote:"60–90 sec", note:"Time under tension. CBum finishers active.",          type:"hypertrophy"},
+  {label:"Phase 4",weeks:"Weeks 7–8",focus:"Deload",     rpe:"5–6",sets:3,reps:"10–12",rir:"3–4 RIR",restNote:"As needed", note:"60% load. Full recovery. Mandatory.",                 type:"deload"},
+];
+const VARIANT_LABELS = {
+  cable:          {label:"Cable",          color:"#2ECC71"},
+  freeWeight:     {label:"Free Weight",    color:"#4A90D9"},
+  machine:        {label:"Machine",        color:"#9B59B6"},
+  hammerStrength: {label:"Hammer Strength",color:"#E67E22"},
+};
+function getPhaseIdxFromWeek(w){return Math.floor(((w-1)%8)/2);}
+function getPhase(w){
+  const idx=getPhaseIdxFromWeek(w);const p=PHASES[idx];const cycleNum=Math.ceil(w/8);
+  const colors=[[C.gold,C.goldLight,C.goldBorder],["#FF6B6B","rgba(255,107,107,0.15)","rgba(255,107,107,0.4)"],[C.accent,C.blueLight,C.blueBorder],[C.green,C.greenLight,C.greenBorder]];
+  return{...p,cycleNum,color:colors[idx][0],colorBg:colors[idx][1],colorBorder:colors[idx][2]};
+}
+
+// ── READINESS ─────────────────────────────────────────────────────
+function scoreReadiness(i){
+  const bb=parseFloat((i.bodyBattery/10).toFixed(1));
+  const ss=parseFloat((i.sleepScore/10).toFixed(1));
+  const tr=parseFloat((i.trainingReadiness/10).toFixed(1));
+  const hrv=({favorable:10,balanced:7,unbalanced:4,poor:1})[i.hrv]||5;
+  const hr=({at:10,"1-3":7,"4-6":4,"7+":1})[i.restingHR]||5;
+  const sor=parseFloat((10-i.soreness).toFixed(1));
+  const mot=parseFloat(i.motivation.toFixed(1));
+  return parseFloat((bb+ss+tr+hrv+hr+sor+mot).toFixed(1));
+}
+function getTier(s){
+  if(s>=56)return{tier:"GREEN", label:"PUSH",        color:C.green,  bg:C.greenLight, note:"Train as programmed. Don't waste a green day."};
+  if(s>=42)return{tier:"YELLOW",label:"MODIFIED",    color:C.gold,   bg:C.goldLight,  note:"Add 1 RIR all sets. No intensity techniques."};
+  if(s>=28)return{tier:"ORANGE",label:"REDUCE",      color:"#FF8C42",bg:"rgba(255,140,66,0.15)",note:"Cut one set. Add 1–2 RIR. Skip conditioning."};
+  return      {tier:"RED",   label:"REST ONLY",   color:"#FF4444",bg:"rgba(255,68,68,0.15)",note:"Zone 2 only. Do not train."};
+}
+
+// ── PROGRESSION ───────────────────────────────────────────────────
+function parseRange(r){const m=r?r.match(/(\d+)[–\-](\d+)/):null;return m?{min:parseInt(m[1]),max:parseInt(m[2])}:{min:0,max:0};}
+function checkProgression(log,repRange){
+  const done=(log||[]).filter(s=>s&&s.reps&&s.weight);
+  if(!done.length)return false;
+  const{max}=parseRange(repRange);
+  return done.every(s=>parseInt(s.reps)>=max)&&parseInt(done[done.length-1].rir||0)>=1;
+}
+
+// ── WARM-UP CALC ──────────────────────────────────────────────────
+function feederCount(f){if(!f)return 0;if(f.includes("3"))return 3;if(f.includes("2"))return 2;if(f.includes("1"))return 1;return 0;}
+function calcWarmup(w,count){
+  const wt=parseFloat(w);if(!wt||isNaN(wt)||wt<=0)return null;
+  const s={3:[{pct:45,reps:"6–10"},{pct:65,reps:"4–6"},{pct:85,reps:"3–4"}],2:[{pct:50,reps:"6–10"},{pct:70,reps:"4–6"}],1:[{pct:60,reps:"6–10"}]};
+  return(s[count]||[]).map(x=>({...x,weight:Math.round(wt*x.pct/100/5)*5}));
+}
+
+// ── PHASE REP RANGES ──────────────────────────────────────────────
+function getPhaseRepRange(ex,phase){
+  if(ex&&ex.reps)return ex.reps;
+  return phase?phase.reps:"10–12";
+}
+
+// ── PHASE SETS ───────────────────────────────────────────────────
+// New program uses phase.sets from PHASES array
+// FST-7 exercises use lockedSets=7, AMRAP=0, fixed=N
+function getPhaseSets(base, phaseType, ex, phaseSets){
+  if(ex&&ex.lockedSets!==undefined&&ex.lockedSets!==null)return ex.lockedSets;
+  if(phaseSets!=null)return phaseSets;
+  if(phaseType==="deload")return 2;
+  if(phaseType==="volume")return 4;
+  if(phaseType==="strength")return 5;
+  return 4; // hypertrophy
+}
+
+// ── REST TIMER PARSE ──────────────────────────────────────────────
+function parseRestSeconds(rest){
+  if(!rest)return 90;
+  if(rest.includes("180")||rest.includes("3 min"))return 180;
+  if(rest.includes("120–180")||rest.includes("2–3"))return 150;
+  if(rest.includes("120"))return 120;
+  if(rest.includes("90"))return 90;
+  if(rest.includes("75"))return 75;
+  if(rest.includes("60–75"))return 67;
+  if(rest.includes("60"))return 60;
+  if(rest.includes("45"))return 45;
+  if(rest.includes("30"))return 30;
+  return 90;
+}
+
+// ── BOMB DROP ─────────────────────────────────────────────────────
+const activeTimers={};
+let globalFlashFn=null;
+function scheduleBombDrop(restSecs){
+  try{
+    const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
+    const ctx=new AC();if(ctx.state==="suspended")ctx.resume();
+    const t=ctx.currentTime;const ws=Math.max(0.1,restSecs-5);const ex=restSecs;
+    const w=ctx.createOscillator();const wg=ctx.createGain();
+    w.connect(wg);wg.connect(ctx.destination);w.type="sine";
+    w.frequency.setValueAtTime(1400,t+ws);w.frequency.exponentialRampToValueAtTime(60,t+ex-0.05);
+    wg.gain.setValueAtTime(0,t+ws);wg.gain.linearRampToValueAtTime(0.45,t+ws+2);wg.gain.linearRampToValueAtTime(0,t+ex);
+    w.start(t+ws);w.stop(t+ex+0.1);
+    const e=ctx.createOscillator();const eg=ctx.createGain();const ef=ctx.createBiquadFilter();
+    e.connect(ef);ef.connect(eg);eg.connect(ctx.destination);e.type="sawtooth";ef.type="lowpass";
+    ef.frequency.setValueAtTime(500,t+ex);ef.frequency.exponentialRampToValueAtTime(30,t+ex+0.7);
+    e.frequency.setValueAtTime(80,t+ex);e.frequency.exponentialRampToValueAtTime(15,t+ex+0.8);
+    eg.gain.setValueAtTime(0,t+ex-0.01);eg.gain.linearRampToValueAtTime(1,t+ex+0.04);eg.gain.exponentialRampToValueAtTime(0.001,t+ex+0.9);
+    e.start(t+ex-0.01);e.stop(t+ex+1);
+    const g=ctx.createOscillator();const gg=ctx.createGain();
+    g.connect(gg);gg.connect(ctx.destination);g.type="sine";
+    g.frequency.setValueAtTime(280,t+ex+0.7);g.frequency.exponentialRampToValueAtTime(1000,t+ex+1.2);
+    gg.gain.setValueAtTime(0,t+ex+0.65);gg.gain.linearRampToValueAtTime(0.6,t+ex+0.75);gg.gain.exponentialRampToValueAtTime(0.001,t+ex+1.4);
+    g.start(t+ex+0.65);g.stop(t+ex+1.5);
+    setTimeout(()=>{try{ctx.close();}catch(e){}}, (restSecs+3)*1000);
+  }catch(err){}
+}
+
+// ── REST TIMER ────────────────────────────────────────────────────
+function RestTimer({seconds, onDismiss}){
+  const[remaining,setRemaining]=useState(seconds);
+  const[done,setDone]=useState(false);
+  const[dismissed,setDismissed]=useState(false);
+  const ref=useRef(null);
+  useEffect(()=>{
+    ref.current=setInterval(()=>{
+      setRemaining(r=>{
+        if(r<=1){
+          clearInterval(ref.current);
+          setDone(true);
+          if(navigator.vibrate)navigator.vibrate([400,200,400,200,600]);
+          if(globalFlashFn)globalFlashFn();
+          // Auto-dismiss after 2.5 seconds so next set highlights
+          setTimeout(()=>{setDismissed(true);if(onDismiss)onDismiss();},2500);
+          return 0;
+        }
+        return r-1;
+      });
+    },1000);
+    return()=>clearInterval(ref.current);
+  },[]);
+  if(dismissed)return null;
+  const pct=((seconds-remaining)/seconds)*100;
+  const mins=Math.floor(remaining/60);const secs=remaining%60;
+  const countdown=remaining<=5&&remaining>0&&!done;
+  return(
+    <div style={{background:done?C.greenLight:countdown?C.goldLight:"rgba(0,48,135,0.6)",border:`1px solid ${done?C.greenBorder:countdown?C.goldBorder:C.borderMid}`,borderLeft:`3px solid ${done?C.green:countdown?C.gold:C.accent}`,borderRadius:"6px",padding:"12px 14px",marginTop:"10px",transition:"opacity 0.3s"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}}>
+        <div style={{fontSize:"11px",letterSpacing:"2px",color:done?C.green:countdown?C.gold:C.accent,textTransform:"uppercase",fontWeight:"bold"}}>{done?"✓ GO — NEXT SET":countdown?"💣 INCOMING...":"REST TIMER"}</div>
+        <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+          <div style={{fontSize:countdown?"32px":"22px",fontWeight:"bold",color:done?C.green:countdown?"#FF4444":C.white,fontVariantNumeric:"tabular-nums"}}>{done?"💥":countdown?remaining:`${mins}:${secs.toString().padStart(2,"0")}`}</div>
+          {!done&&<button onClick={()=>{clearInterval(ref.current);setDismissed(true);if(onDismiss)onDismiss();}} style={{background:"transparent",border:"none",color:C.textFaint,fontSize:"18px",padding:"2px 6px",lineHeight:1}}>✕</button>}
+        </div>
+      </div>
+      <div style={{background:"rgba(255,255,255,0.1)",borderRadius:"2px",height:"4px",overflow:"hidden"}}>
+        <div style={{background:done?C.green:countdown?"#FF4444":C.accent,height:"100%",width:`${pct}%`,transition:"width 1s linear",borderRadius:"2px"}}/>
+      </div>
+    </div>
+  );
+}
+
+// ── WARMUP CALC COMPONENT ─────────────────────────────────────────
+function WarmupCalc({feeders}){
+  const[w,setW]=useState("");
+  const count=feederCount(feeders);if(!count)return null;
+  const sets=calcWarmup(w,count);
+  return(
+    <div style={{background:"rgba(0,48,135,0.5)",border:`1px solid ${C.goldBorder}`,borderLeft:`3px solid ${C.gold}`,borderRadius:"6px",padding:"14px",marginBottom:"14px"}}>
+      <div style={{fontSize:"11px",letterSpacing:"2px",color:C.gold,textTransform:"uppercase",fontWeight:"bold",marginBottom:"10px"}}>Nippard Warm-Up Sets</div>
+      <input type="number" placeholder="Working weight (lbs)" value={w} onChange={e=>setW(e.target.value)} style={{marginBottom:"10px",textAlign:"left",padding:"10px 12px",fontSize:"15px"}}/>
+      {sets?sets.map((s,i)=>(
+        <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:i<sets.length-1?`1px solid ${C.border}`:"none"}}>
+          <div style={{fontSize:"12px",color:C.textMuted,letterSpacing:"1px",textTransform:"uppercase"}}>Set {i+1} — {s.pct}%</div>
+          <div style={{display:"flex",gap:"16px",alignItems:"center"}}>
+            <div style={{fontSize:"20px",fontWeight:"bold",color:C.white}}>{s.weight}<span style={{fontSize:"12px",fontWeight:"normal",color:C.textMuted}}> lbs</span></div>
+            <div style={{fontSize:"13px",color:C.textMuted}}>{s.reps} reps</div>
+          </div>
+        </div>
+      )):<div style={{fontSize:"13px",color:C.textFaint,fontStyle:"italic"}}>Enter working weight to calculate.</div>}
+    </div>
+  );
+}
+
+// ── SET LOG ROW ───────────────────────────────────────────────────
+// isNextSet: true when this row should be highlighted as the next target
+// hideTimer: true for superset A rows (timer fires on B only)
+function SetLogRow({si,label,repRange,data,onLog,restSecs,exId,isNextSet,hideTimer,onTimerDone}){
+  const[tv,setTv]=useState(activeTimers[exId+"_"+si]||0);
+  const{max}=parseRange(repRange);
+  const isLogged=!!(data.weight&&data.reps);
+  function startTimer(){
+    if(hideTimer)return;
+    scheduleBombDrop(restSecs);
+    const v=(activeTimers[exId+"_"+si]||0)+1;
+    activeTimers[exId+"_"+si]=v;
+    setTv(v);
+  }
+  function handleDismiss(){setTv(0);if(onTimerDone)onTimerDone();}
+  const atMax=data.reps&&parseInt(data.reps)>=max&&max>0;
+  // Next set highlight — gold border and subtle gold background
+  const rowBg=isNextSet&&!isLogged?"rgba(255,199,44,0.08)":"transparent";
+  const rowBorder=isNextSet&&!isLogged?`1.5px solid ${C.gold}`:"1.5px solid transparent";
+  return(
+    <div style={{marginBottom:"8px",borderRadius:"6px",background:rowBg,border:rowBorder,padding:isNextSet&&!isLogged?"8px 6px":"0 6px",transition:"all 0.3s"}}>
+      <div style={{display:"flex",gap:"6px",alignItems:"center"}}>
+        <div style={{fontSize:"11px",color:isNextSet&&!isLogged?C.gold:C.textMid,width:"50px",fontWeight:"bold",flexShrink:0,transition:"color 0.3s"}}>{label}</div>
+        <input type="number" placeholder={max>0?String(max):"lbs"} value={data.weight||""} onChange={e=>onLog(si,"weight",e.target.value)} style={{flex:1,minWidth:"60px",borderColor:isNextSet&&!isLogged?C.gold:undefined}}/>
+        <input type="number" placeholder={max>0?repRange:"reps"} value={data.reps||""} onChange={e=>onLog(si,"reps",e.target.value)} style={{flex:1,minWidth:"60px",color:atMax?C.green:C.white,borderColor:isNextSet&&!isLogged?C.gold:atMax?C.green:undefined}}/>
+        <input type="number" placeholder="RIR" value={data.rir||""} onChange={e=>onLog(si,"rir",e.target.value)} style={{flex:"0 0 56px",width:"56px",minWidth:"56px",color:data.rir!==undefined&&parseInt(data.rir)<=1?C.gold:C.white}}/>
+        {isLogged&&!hideTimer&&(
+          <button onClick={startTimer} style={{background:tv>0?"transparent":C.gold,border:`1px solid ${C.gold}`,borderRadius:"6px",padding:"8px 10px",color:tv>0?C.gold:C.bg,fontSize:"10px",fontWeight:"bold",letterSpacing:"1px",whiteSpace:"nowrap",flexShrink:0,minWidth:"60px"}}>▶ REST</button>
+        )}
+        {isLogged&&hideTimer&&(
+          <div style={{width:"60px",flexShrink:0}}/>
+        )}
+      </div>
+      {tv>0&&<RestTimer key={tv} seconds={restSecs} onDismiss={handleDismiss}/>}
+    </div>
+  );
+}
+
+// ── BAND TRACKER ──────────────────────────────────────────────────
+const BANDS=["Light","Medium","Heavy","Extra Heavy","Mini Band"];
+function BandTracker({sessionKey,bandLog,onBandLog}){
+  const current=bandLog[sessionKey]||"";
+  return(
+    <div style={{background:"rgba(0,48,135,0.4)",border:`1px solid ${C.border}`,borderRadius:"8px",padding:"14px",marginBottom:"14px"}}>
+      <div style={{fontSize:"12px",letterSpacing:"2px",color:C.gold,textTransform:"uppercase",fontWeight:"bold",marginBottom:"10px"}}>Band Used Today</div>
+      <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+        {BANDS.map(b=>(
+          <button key={b} onClick={()=>onBandLog(sessionKey,current===b?"":b)}
+            style={{padding:"8px 12px",background:current===b?C.gold:"transparent",border:`1.5px solid ${current===b?C.gold:C.borderMid}`,borderRadius:"6px",color:current===b?C.bg:C.textMid,fontSize:"12px",fontWeight:current===b?"bold":"normal"}}>
+            {b}
+          </button>
+        ))}
+      </div>
+      {current&&<div style={{fontSize:"12px",color:C.gold,marginTop:"8px",fontWeight:"bold"}}>✓ {current} band logged</div>}
+    </div>
+  );
+}
+
+
+// ── EQUIPMENT BADGE COLORS ────────────────────────────────────────
+const EQUIP_COLORS = {
+  BARBELL:    {bg:"#E85A1A",text:"#FFFFFF"},
+  DUMBBELL:   {bg:"#4A90D9",text:"#FFFFFF"},
+  CABLE:      {bg:"#2ECC71",text:"#FFFFFF"},
+  MACHINE:    {bg:"#9B59B6",text:"#FFFFFF"},
+  BODYWEIGHT: {bg:"#16A085",text:"#FFFFFF"},
+  BAND:       {bg:C.gold,  text:C.bg},
+};
+
+
+// ── VARIANT PICKER (full-screen panel) ───────────────────────────
+function EquipBadge({type}){
+  const meta=VARIANT_LABELS[type]||{label:type,color:C.gold};
+  return <span style={{fontSize:"10px",letterSpacing:"1px",color:"#fff",background:meta.color,padding:"2px 7px",borderRadius:"3px",fontWeight:"bold",flexShrink:0}}>{meta.label}</span>;
+}
+
+function VariantPicker({ex, side, currentVariant, onSelect, onClose}){
+  // ex.variants = {cable:{name,note}, freeWeight:{name,note}, machine:{...}, hammerStrength:{...}}
+  const variants = ex.variants || {};
+  const variantKeys = Object.keys(variants).filter(k=>variants[k]!==null);
+  return(
+    <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:C.bg,zIndex:200,overflowY:"auto",display:"flex",flexDirection:"column"}}>
+      <div style={{background:C.surfaceMid,borderBottom:`2px solid ${C.gold}`,padding:"20px 18px",position:"sticky",top:0,zIndex:10,flexShrink:0}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+          <div>
+            <div style={{fontSize:"10px",letterSpacing:"3px",color:C.gold,textTransform:"uppercase",fontWeight:"bold",marginBottom:"4px"}}>
+              {side?"Swap Equipment — "+(side==="a"?"A Movement":"B Movement"):"Swap Equipment"}
+            </div>
+            <div style={{fontSize:"18px",fontWeight:"bold",color:C.white,lineHeight:1.2}}>
+              {side==="a"?ex.name:side==="b"?(ex.subName||ex.name):ex.name}
+            </div>
+          </div>
+          <button onClick={onClose} style={{background:"transparent",border:`1.5px solid ${C.borderMid}`,borderRadius:"8px",padding:"10px 16px",color:C.textMid,fontSize:"13px",fontWeight:"bold",flexShrink:0,marginLeft:"12px"}}>✕ Close</button>
+        </div>
+      </div>
+      <div style={{padding:"20px 18px",flex:1}}>
+        {/* Primary / Default */}
+        <div style={{marginBottom:"16px"}}>
+          <button onClick={()=>onSelect(null)} style={{width:"100%",padding:"14px 16px",background:!currentVariant?"rgba(255,199,44,0.1)":"transparent",border:`1.5px solid ${!currentVariant?C.gold:C.borderMid}`,borderRadius:"10px",color:!currentVariant?C.gold:C.textMuted,fontSize:"13px",fontWeight:"bold",textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <div style={{fontSize:"15px",fontWeight:"bold",color:C.white}}>{ex.name}</div>
+              <div style={{fontSize:"11px",color:C.textMuted,marginTop:"2px"}}>Primary / Default</div>
+              {ex.note&&<div style={{fontSize:"12px",color:C.textMuted,marginTop:"4px",lineHeight:1.5}}>{ex.note}</div>}
+            </div>
+            {!currentVariant&&<span style={{color:C.gold,fontSize:"16px",flexShrink:0,marginLeft:"10px"}}>✓</span>}
+          </button>
+        </div>
+        <div style={{fontSize:"11px",letterSpacing:"2px",color:C.textFaint,textTransform:"uppercase",fontWeight:"bold",marginBottom:"12px"}}>Equipment Options</div>
+        {variantKeys.length===0&&<div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"10px",padding:"20px",textAlign:"center",color:C.textMuted,fontSize:"14px"}}>No variants for this exercise.</div>}
+        {variantKeys.map(key=>{
+          const v=variants[key];
+          const meta=VARIANT_LABELS[key]||{label:key,color:C.gold};
+          const isActive=currentVariant===key;
+          return(
+            <div key={key} onClick={()=>onSelect(key)}
+              style={{background:isActive?"rgba(255,199,44,0.08)":C.surface,border:`1.5px solid ${isActive?C.gold:C.border}`,borderRadius:"10px",padding:"16px",marginBottom:"12px",cursor:"pointer"}}>
+              <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"8px",flexWrap:"wrap"}}>
+                <EquipBadge type={key}/>
+                <div style={{fontSize:"16px",fontWeight:"bold",color:C.white,flex:1}}>{v.name}</div>
+                {isActive&&<span style={{fontSize:"10px",letterSpacing:"1px",color:C.bg,background:C.gold,padding:"2px 8px",borderRadius:"3px",fontWeight:"bold"}}>ACTIVE</span>}
+              </div>
+              <div style={{fontSize:"13px",color:C.textMid,lineHeight:1.6}}>{v.note}</div>
+              {!isActive&&<div style={{fontSize:"12px",color:C.gold,fontWeight:"bold",marginTop:"8px"}}>Tap to select →</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
+// ── PROGRAM DATA ──────────────────────────────────────────────────
+// groupType: "standalone" | "superset" | "giant"
+// lockedSets: override phase sets (7=FST-7, 0=AMRAP, 1=fixed)
+const PROGRAM = [
+  {
+    day:"MON",label:"Full Body Strength",tag:"Lower Focus",color:C.gold,
+    warmup:[
+      {item:"Bike or Row Erg",equipment:"MACHINE",notes:"5 min easy. Build to moderate pace. Nasal breathing only."},
+      {item:"Hip Flexor Stretch",equipment:"BODYWEIGHT",notes:"30 sec each side. Couch stretch or lunge position. L3-S1 prep before any lower body loading."},
+      {item:"Band Pull-Apart",equipment:"BAND",notes:"2 × 20. MANDATORY every session."},
+      {item:"Face Pull",equipment:"CABLE",notes:"2 × 20, light cable. MANDATORY every session."},
+    ],
+    groups:[
+      {type:"standalone",label:"1",exercises:[
+        {id:"mon_01",name:"Barbell RDL",reps:"10–12",lockedSets:null,
+          note:"RPE 6–7. Stop at lumbar fatigue. Hip hinge, soft knee, bar stays close to body. Hex bar substitute available at same RPE.",
+          spineFlag:"L3-S1: Hard cap RPE 6–7. Any lumbar fatigue = stop signal. Switch to cable pull-through immediately.",
+          variants:{cable:{name:"Cable Pull-Through",note:"Rope attachment, low pulley. Same hip hinge pattern, zero spinal compression."},freeWeight:{name:"DB RDL",note:"Dumbbells allow neutral grip. Same hip hinge cues as barbell."},machine:{name:"Lying Leg Curl (Machine)",note:"Closest hamstring hinge equivalent if true RDL unavailable."},hammerStrength:{name:"Hammer Strength Lying Leg Curl",note:"Plate-loaded. Full ROM hamstring isolation."}}},
+      ]},
+      {type:"standalone",label:"2",exercises:[
+        {id:"mon_02",name:"Leg Press",reps:"10–12",lockedSets:null,
+          note:"Full ROM. Controlled descent. Feet mid-platform. Lumbar stays flat on pad.",
+          spineFlag:"L3-S1: Lumbar must stay in contact with pad. Stop depth where lower back rounds.",
+          variants:{cable:null,freeWeight:{name:"DB Goblet Squat",note:"Goblet position keeps torso upright. Safer spine loading than barbell squat."},machine:{name:"Leg Press (Selectorized)",note:"Same movement."},hammerStrength:{name:"Hammer Strength Leg Press",note:"Plate-loaded. Slightly more natural bar path."}}},
+      ]},
+      {type:"standalone",label:"3",exercises:[
+        {id:"mon_03",name:"Bulgarian Split Squat (DB)",reps:"10 ea.",lockedSets:null,
+          note:"Rear foot elevated on bench. Torso upright. Drive through front heel. DBs at sides — no barbell.",
+          spineFlag:"L3-S1: Torso upright throughout. No forward lean. DBs only — no barbell.",
+          variants:{cable:{name:"Cable Bulgarian Split Squat",note:"Low pulley, ipsilateral hand. Adds anti-rotation demand."},freeWeight:{name:"DB Bulgarian Split Squat",note:"Default. Hold DBs at sides."},machine:{name:"Smith Machine Split Squat",note:"Fixed bar path. Good if balance is limiting factor."},hammerStrength:{name:"Hammer Strength Single-Leg Press",note:"Plate-loaded unilateral. Lower injury risk, same quad stimulus."}}},
+      ]},
+      {type:"superset",label:"A",groupNote:"Antagonist push/pull. No rest between A1 and A2. 90s after completing both.",exercises:[
+        {id:"mon_04a",name:"Seated Cable Row",reps:"12",lockedSets:null,
+          note:"Neutral grip. Drive elbows back. Squeeze at peak contraction. Full stretch at front.",
+          spineFlag:null,
+          variants:{cable:{name:"Seated Cable Row",note:"Default."},freeWeight:{name:"DB Chest-Supported Row",note:"Chest on incline bench. Eliminates spinal loading completely."},machine:{name:"Machine Seated Row",note:"Fixed path. Good for isolation."},hammerStrength:{name:"Hammer Strength Iso-Lateral Row",note:"Plate-loaded. Each arm independent. Excellent lat thickness."}}},
+        {id:"mon_04b",name:"Incline DB Press",reps:"10–12",lockedSets:null,
+          note:"30–45° angle. Full stretch at bottom. 2-sec eccentric. Control through full ROM.",
+          spineFlag:null,
+          variants:{cable:{name:"Low-to-High Cable Press",note:"Cables set high. Press down and forward. Upper chest stretch."},freeWeight:{name:"Incline DB Press",note:"Default."},machine:{name:"Incline Machine Press",note:"Safe to push to failure."},hammerStrength:{name:"Hammer Strength Incline Press",note:"Plate-loaded. Converging path. Best upper chest stimulus."}},
+          isSuperset:true,subName:"Incline DB Press"},
+      ]},
+      {type:"standalone",label:"4",exercises:[
+        {id:"mon_05",name:"Leg Curl (Machine)",reps:"12–15",lockedSets:null,
+          note:"Full ROM. Pause at peak contraction. Foot dorsiflexed for greater hamstring activation.",
+          spineFlag:null,
+          variants:{cable:{name:"Cable Leg Curl (Standing)",note:"Ankle cuff, low pulley. Single leg. Full ROM."},freeWeight:{name:"DB Leg Curl (Lying)",note:"Hold DB between feet. Lying prone. Control the eccentric."},machine:{name:"Seated or Lying Leg Curl",note:"Default."},hammerStrength:{name:"Hammer Strength Lying Leg Curl",note:"Plate-loaded. Excellent ROM."}}},
+      ]},
+      {type:"standalone",label:"5",exercises:[
+        {id:"mon_06",name:"Face Pulls (Cable)",reps:"15–20",lockedSets:null,
+          note:"Rope at eye level. Pull to forehead. Elbows flare high. External rotation at end range. Rotator cuff health — non-negotiable.",
+          spineFlag:null,
+          variants:{cable:{name:"Cable Face Pull",note:"Default."},freeWeight:{name:"Band Face Pull",note:"Anchored at head height. Same movement pattern."},machine:{name:"Rear Delt Machine Fly",note:"Closest machine substitute."},hammerStrength:{name:"Hammer Strength Rear Delt",note:"Plate-loaded rear delt."}}},
+      ]},
+    ],
+    finisher:null,
+    conditioning:null,
+    cooldown:"Hip flexor stretch 60 sec per side. Hamstring stretch. Light walk 2 min.",
+  },
+  {
+    day:"TUE",label:"Mixed Conditioning",tag:"Metabolic",color:"#FF6B6B",
+    warmup:[
+      {item:"Row Erg or Assault Bike",equipment:"MACHINE",notes:"5 min easy. Build to moderate pace. Nasal breathing only."},
+      {item:"Band Pull-Apart",equipment:"BAND",notes:"2 × 20. MANDATORY."},
+      {item:"Face Pull",equipment:"CABLE",notes:"2 × 20. MANDATORY."},
+    ],
+    groups:[
+      {type:"standalone",label:"1",exercises:[
+        {id:"tue_01",name:"Assault Bike Intervals",reps:"20s on / 40s off",lockedSets:7,
+          note:"Max effort on work intervals. Track RPM — chase the number each round. 7 intervals total.",
+          spineFlag:null,
+          variants:{cable:null,freeWeight:null,machine:{name:"Rower Intervals",note:"Same 20s/40s protocol. Damper at 5–6."},hammerStrength:null}},
+      ]},
+      {type:"standalone",label:"2",exercises:[
+        {id:"tue_02",name:"Sled Push",reps:"40 yds",lockedSets:null,
+          note:"Loaded sprint. Drive through balls of feet. Low body position. Alternate with KB Farmer Carry if no sled available.",
+          spineFlag:"T9-T11: Moderate load only on sled. No maximal sled loading.",
+          variants:{cable:null,freeWeight:{name:"KB Farmer Carry",note:"Heavy. 40 yds per set. Grip and posture."},machine:null,hammerStrength:null}},
+      ]},
+      {type:"standalone",label:"3",exercises:[
+        {id:"tue_03",name:"Med Ball Slam",reps:"12",lockedSets:null,
+          note:"Full overhead extension. Violent contraction down. Core braced throughout. Catch or let bounce.",
+          spineFlag:null,
+          variants:{cable:{name:"Cable Crunch",note:"Rope, high pulley. Not a true substitute but closest cable option."},freeWeight:{name:"Med Ball Slam",note:"Default. 20–30 lb ball."},machine:null,hammerStrength:null}},
+      ]},
+      {type:"giant",label:"A",groupNote:"10 min AMRAP — run A1 → A2 → A3 as a circuit with no rest between movements. Log rounds completed.",exercises:[
+        {id:"tue_04a",name:"KB Swing (Russian)",reps:"10",lockedSets:0,
+          note:"AMRAP circuit. Hip hinge, not squat. Spine neutral. Hike the bell back, drive hips forward.",
+          spineFlag:"L3-S1: Hip hinge pattern — never squat the swing. Stop if lower back fatigues.",
+          variants:{cable:{name:"Cable Pull-Through",note:"Low pulley, rope. Same hip hinge pattern."},freeWeight:{name:"KB Swing",note:"Default."},machine:null,hammerStrength:null}},
+        {id:"tue_04b",name:"Box Step-Up",reps:"10 ea.",lockedSets:0,
+          note:"AMRAP circuit. Drive through heel. Full hip extension at top. Controlled step down.",
+          spineFlag:null,
+          variants:{cable:null,freeWeight:{name:"DB Step-Up",note:"Add dumbbells for load."},machine:{name:"Stair Climber",note:"2 min per round substitute."},hammerStrength:null}},
+        {id:"tue_04c",name:"Push-Up",reps:"15",lockedSets:0,
+          note:"AMRAP circuit. Chest to floor. Full lockout at top. Keep core tight.",
+          spineFlag:null,
+          variants:{cable:{name:"Cable Press-Down (Kneeling)",note:"High pulley. Mimics push pattern."},freeWeight:{name:"Push-Up",note:"Default. Add weight vest if too easy."},machine:{name:"Machine Chest Press",note:"Light, high rep. Fatigue finisher."},hammerStrength:null}},
+      ]},
+    ],
+    finisher:null,
+    conditioning:null,
+    cooldown:"5 min easy walk. Full body stretch. Heart rate below 120 before leaving.",
+  },
+  {
+    day:"WED",label:"Push / Pull Upper",tag:"FST-7 Day",color:C.gold,
+    warmup:[
+      {item:"Bike or Row Erg",equipment:"MACHINE",notes:"5 min easy warm-up."},
+      {item:"Band Pull-Apart",equipment:"BAND",notes:"2 × 20. MANDATORY."},
+      {item:"Face Pull",equipment:"CABLE",notes:"2 × 20. MANDATORY."},
+      {item:"Band Shoulder Dislocates",equipment:"BAND",notes:"10 slow passes. C6-C7 prep before any pressing."},
+    ],
+    groups:[
+      {type:"standalone",label:"1",exercises:[
+        {id:"wed_01",name:"Incline DB Press",reps:"10–12",lockedSets:null,
+          note:"Primary push. 30–45° angle. Full stretch at bottom. 2-sec eccentric. Control throughout.",
+          spineFlag:null,
+          variants:{cable:{name:"High-to-Low Cable Press",note:"Cables set high. Press down and forward. Upper chest stretch."},freeWeight:{name:"Incline DB Press",note:"Default."},machine:{name:"Incline Machine Press",note:"Safe to push to failure."},hammerStrength:{name:"Hammer Strength Incline Press",note:"Plate-loaded. Converging path. Best upper chest stimulus."}}},
+      ]},
+      {type:"standalone",label:"2",exercises:[
+        {id:"wed_02",name:"Lat Pulldown (Wide Grip)",reps:"10–12",lockedSets:null,
+          note:"Initiate with lats — not biceps. Slight lean back. Pull bar to upper chest. Full stretch at top.",
+          spineFlag:"C6-C7: Monitor shoulder on each set. Revert to neutral grip at any cervical symptoms.",
+          variants:{cable:{name:"Cable Lat Pulldown",note:"Default. Wide pronated grip."},freeWeight:{name:"DB Pullover",note:"Lying across bench. Long head lat stretch."},machine:{name:"Lat Pulldown Machine",note:"Same movement, selectorized."},hammerStrength:{name:"Hammer Strength Lat Pulldown",note:"Plate-loaded. Excellent lat width builder."}}},
+      ]},
+      {type:"superset",label:"A",groupNote:"Isolation pair. No rest between A1 and A2. 75s after completing both.",exercises:[
+        {id:"wed_03a",name:"Cable Fly",reps:"12–15",lockedSets:null,
+          note:"Pulleys high for mid-chest. Full stretch at arms-wide, squeeze at center. Control the return.",
+          spineFlag:"T9-T11: Stop before full adduction at center. Never fully lock out.",
+          variants:{cable:{name:"Cable Crossover",note:"Default."},freeWeight:{name:"DB Fly (Flat or Incline)",note:"Slight bend in elbow. Controlled ROM."},machine:{name:"Pec Deck (Light)",note:"Keep RPE under 6. T9-T11 constraint."},hammerStrength:{name:"Hammer Strength Seated Chest Fly",note:"Keep weight moderate."}}},
+        {id:"wed_03b",name:"Lateral Raise",reps:"15–20",lockedSets:null,
+          note:"Controlled. No momentum. Slight forward lean. Pinky slightly higher than thumb at top.",
+          spineFlag:null,
+          variants:{cable:{name:"Cable Lateral Raise",note:"Single arm. Low pulley across body. Constant tension at bottom."},freeWeight:{name:"DB Lateral Raise",note:"Default."},machine:{name:"Lateral Raise Machine",note:"Good for strict form and isolation."},hammerStrength:null},
+          isSuperset:true,subName:"Lateral Raise"},
+      ]},
+      {type:"superset",label:"B",groupNote:"Antagonist pull pair. No rest between B1 and B2. 90s after completing both.",exercises:[
+        {id:"wed_04a",name:"Seated Cable Row (Close Grip)",reps:"12",lockedSets:null,
+          note:"V-bar or neutral grip. Elbows tight to body. Drive scapula back at peak. Full stretch at front.",
+          spineFlag:null,
+          variants:{cable:{name:"Seated Cable Row",note:"Default."},freeWeight:{name:"DB Chest-Supported Row",note:"Incline bench, chest down. No lumbar involvement."},machine:{name:"Seated Row Machine",note:"Selectorized."},hammerStrength:{name:"Hammer Strength Iso-Lateral Row",note:"Plate-loaded. Each arm independent."}}},
+        {id:"wed_04b",name:"Rear Delt Fly",reps:"15",lockedSets:null,
+          note:"Light weight. Full arc. Squeeze at peak. Elbow slightly bent. Two rear delt sessions per week is structural.",
+          spineFlag:null,
+          variants:{cable:{name:"Cable Rear Delt Fly",note:"Both cables crossed. Pull apart at face height."},freeWeight:{name:"DB Rear Delt Fly (Bent Over)",note:"Chest supported or standing hinge."},machine:{name:"Rear Delt Machine Fly",note:"Flip around on pec deck."},hammerStrength:{name:"Hammer Strength Rear Delt",note:"Plate-loaded reverse fly."}},
+          isSuperset:true,subName:"Rear Delt Fly"},
+      ]},
+      {type:"standalone",label:"3",exercises:[
+        {id:"wed_05",name:"Cable Fly — FST-7",reps:"12–15",lockedSets:7,
+          note:"45s rest between sets. Same weight all 7 sets. Full stretch every rep. Do not go heavier — go deeper into the stretch. Hany Rambod fascial stretch protocol.",
+          spineFlag:"T9-T11: Stop before full adduction. Never lock out at center.",
+          variants:{cable:{name:"Cable Crossover Fly",note:"Default FST-7 finisher."},freeWeight:{name:"DB Fly",note:"Same 45s rest protocol."},machine:{name:"Chest Press Machine",note:"Light, full ROM, 7 sets."},hammerStrength:{name:"Hammer Strength Chest Press (Feeder)",note:"Strip to 25% 1RM. Pump focus."}}},
+      ]},
+    ],
+    finisher:null,
+    conditioning:null,
+    cooldown:"Band pull-aparts × 20. Chest and shoulder stretch 60 sec per side.",
+  },
+  {
+    day:"THU",label:"Full Body Accessory",tag:"Stability / Volume",color:C.gold,
+    warmup:[
+      {item:"Bike or Row Erg",equipment:"MACHINE",notes:"5 min easy."},
+      {item:"Band Pull-Apart",equipment:"BAND",notes:"2 × 20. MANDATORY."},
+      {item:"Face Pull",equipment:"CABLE",notes:"2 × 20. MANDATORY."},
+      {item:"Hip Flexor Stretch",equipment:"BODYWEIGHT",notes:"30 sec each side. Lower body session prep."},
+    ],
+    groups:[
+      {type:"standalone",label:"1",exercises:[
+        {id:"thu_01",name:"Single-Leg Press",reps:"12 ea.",lockedSets:null,
+          note:"Controlled descent. No knee lockout at top. Full ROM. Lumbar stays flat on pad.",
+          spineFlag:"L3-S1: Lumbar stays flat on pad throughout full ROM.",
+          variants:{cable:null,freeWeight:{name:"DB Reverse Lunge",note:"Step back. Less knee stress. Control with front leg."},machine:{name:"Single-Leg Press (Selectorized)",note:"Default."},hammerStrength:{name:"Hammer Strength Single-Leg Press",note:"Plate-loaded. More natural arc."}}},
+      ]},
+      {type:"superset",label:"A",groupNote:"Quad/hamstring antagonist. No rest between A1 and A2. 90s after both.",exercises:[
+        {id:"thu_02a",name:"Leg Extension (Machine)",reps:"15",lockedSets:null,
+          note:"Full extension. Pause 1s at top. Do not hyperextend. Slow 2-sec eccentric.",
+          spineFlag:null,
+          variants:{cable:{name:"Cable Leg Extension (Standing)",note:"Ankle cuff, low pulley. Single leg."},freeWeight:{name:"DB Sissy Squat",note:"Bodyweight or light DB. VMO emphasis."},machine:{name:"Leg Extension Machine",note:"Default."},hammerStrength:{name:"Hammer Strength Leg Extension",note:"Plate-loaded."}}},
+        {id:"thu_02b",name:"Leg Curl (Machine)",reps:"15",lockedSets:null,
+          note:"Full ROM. Pause at peak contraction. Foot dorsiflexed.",
+          spineFlag:null,
+          variants:{cable:{name:"Cable Leg Curl (Standing)",note:"Ankle cuff, low pulley. Single leg."},freeWeight:{name:"Swiss Ball Leg Curl",note:"Feet on ball, hips up. Full hamstring activation."},machine:{name:"Seated or Lying Leg Curl",note:"Default."},hammerStrength:{name:"Hammer Strength Lying Leg Curl",note:"Plate-loaded."}},
+          isSuperset:true,subName:"Leg Curl"},
+      ]},
+      {type:"standalone",label:"2",exercises:[
+        {id:"thu_03",name:"Cable Pullover",reps:"12–15",lockedSets:null,
+          note:"High pulley, rope or bar. Arms soft — slight elbow bend. Long head lat stretch. Pull through hip. Serratus and lat stimulus.",
+          spineFlag:null,
+          variants:{cable:{name:"Cable Pullover",note:"Default. High pulley, kneeling or standing."},freeWeight:{name:"DB Pullover",note:"Lying across bench. Slight bend in elbows."},machine:{name:"Machine Pullover (Nautilus-style)",note:"Best machine option if available."},hammerStrength:{name:"Hammer Strength Pullover",note:"Plate-loaded. Excellent lat and serratus stretch."}}},
+      ]},
+      {type:"standalone",label:"3",exercises:[
+        {id:"thu_04",name:"DB Incline Row",reps:"12 ea.",lockedSets:null,
+          note:"Chest supported on incline bench. No spinal loading. Drive elbow straight back. Full stretch at bottom.",
+          spineFlag:"L3-S1: Chest fully supported on incline pad. No lumbar involvement.",
+          variants:{cable:{name:"Single-Arm Cable Row (Seated)",note:"Neutral grip. Rotate shoulder at end range."},freeWeight:{name:"DB Incline Row",note:"Default."},machine:{name:"Chest-Supported Row Machine",note:"Chest pad eliminates back involvement."},hammerStrength:{name:"Hammer Strength Iso-Lateral Row",note:"Chest-supported variant if available."}}},
+      ]},
+      {type:"standalone",label:"4",exercises:[
+        {id:"thu_05",name:"Cable Chest Fly (Low-to-High)",reps:"15",lockedSets:null,
+          note:"Pulleys set low. Press up and across. Upper chest emphasis. Full stretch at bottom of arc.",
+          spineFlag:"T9-T11: Stop before full adduction at center.",
+          variants:{cable:{name:"Low-to-High Cable Fly",note:"Default."},freeWeight:{name:"DB Incline Fly",note:"Incline bench. Arms wide, slight elbow bend."},machine:{name:"Upper Chest Machine Fly",note:"Adjustable pec deck set to low-to-high path."},hammerStrength:null}},
+      ]},
+      {type:"giant",label:"B",groupNote:"Rotator cuff circuit. B1 → B2 → B3 straight through with no rest. 60s after all three.",exercises:[
+        {id:"thu_06a",name:"External Rotation (Cable)",reps:"15 ea.",lockedSets:null,
+          note:"Light. Elbow at 90°, pinned to side. Rotate out slowly. Maintenance — not strength work.",
+          spineFlag:null,
+          variants:{cable:{name:"Cable External Rotation",note:"Default. Low pulley."},freeWeight:{name:"DB External Rotation (Sidelying)",note:"Lying on side. Slow controlled rotation."},machine:null,hammerStrength:null}},
+        {id:"thu_06b",name:"Band Pull-Apart",reps:"20",lockedSets:null,
+          note:"Arms straight. Pull to chest. Squeeze rear delts. Do not shrug.",
+          spineFlag:null,
+          variants:{cable:{name:"Cable Pull-Apart",note:"Both handles at shoulder height. Pull apart."},freeWeight:{name:"Band Pull-Apart",note:"Default."},machine:null,hammerStrength:null}},
+        {id:"thu_06c",name:"Face Pulls (Cable)",reps:"20",lockedSets:null,
+          note:"Rope at eye level. Pull to forehead. Elbows flare up. External rotation at end range.",
+          spineFlag:null,
+          variants:{cable:{name:"Cable Face Pull",note:"Default."},freeWeight:{name:"Band Face Pull",note:"Anchor at face height."},machine:{name:"Rear Delt Machine",note:"Same musculature, different path."},hammerStrength:null}},
+      ]},
+    ],
+    finisher:null,
+    conditioning:null,
+    cooldown:"Full body stretch 5 min. External rotation stretch. Band pull-aparts × 20.",
+  },
+  {
+    day:"FRI",label:"Arms",tag:"Biceps / Triceps",color:"#FF6B6B",
+    warmup:[
+      {item:"Band Pull-Apart",equipment:"BAND",notes:"2 × 20. MANDATORY."},
+      {item:"Face Pull",equipment:"CABLE",notes:"2 × 20. MANDATORY."},
+      {item:"EZ Bar Curl Primer",equipment:"BARBELL",notes:"Light. 2 × 10. Warm up elbow joint and bicep tendon."},
+      {item:"Tricep Pushdown Primer",equipment:"CABLE",notes:"Light cable. 1 × 15. Warm up elbow joint and tricep tendon."},
+    ],
+    groups:[
+      {type:"superset",label:"A",groupNote:"Classic antagonist arm pair. No rest between A1 and A2. 90s after both.",exercises:[
+        {id:"fri_01a",name:"EZ Bar Curl",reps:"10–12",lockedSets:null,
+          note:"Full supination at top. Elbows pinned to sides. Do not swing. Squeeze hard at peak.",
+          spineFlag:null,
+          variants:{cable:{name:"Cable Curl (EZ Bar or Straight Bar)",note:"Low pulley. Constant tension through full ROM."},freeWeight:{name:"EZ Bar Curl",note:"Default."},machine:{name:"Preacher Curl Machine",note:"Arm pad locks elbow position. No body english."},hammerStrength:{name:"Hammer Strength Preacher Curl",note:"Plate-loaded. Excellent peak and stretch."}}},
+        {id:"fri_01b",name:"Tricep Pushdown (Rope)",reps:"12–15",lockedSets:null,
+          note:"Flare rope ends at bottom. Full extension. Elbows pinned to sides throughout.",
+          spineFlag:null,
+          variants:{cable:{name:"Cable Tricep Pushdown",note:"Default. Rope for lateral head, straight bar for medial."},freeWeight:{name:"DB Kickback",note:"Hinge forward. Upper arm parallel to floor. Full extension."},machine:{name:"Tricep Pushdown Machine",note:"Selectorized. Good isolation."},hammerStrength:null},
+          isSuperset:true,subName:"Tricep Pushdown"},
+      ]},
+      {type:"superset",label:"B",groupNote:"Stretch-focused long head pair. No rest between B1 and B2. 75s after both.",exercises:[
+        {id:"fri_02a",name:"Incline DB Curl",reps:"12",lockedSets:null,
+          note:"Long head fully stretched — arms hang behind torso at bottom. No swinging. Full supination at top.",
+          spineFlag:null,
+          variants:{cable:{name:"High Cable Curl (Behind Body)",note:"Pulley set high behind you. Step forward for same long head stretch."},freeWeight:{name:"Incline DB Curl",note:"Default. 45–60° bench angle."},machine:{name:"Machine Curl (Stretch Position)",note:"Only if machine allows extended arm position."},hammerStrength:null}},
+        {id:"fri_02b",name:"Overhead Cable Tricep Extension",reps:"12",lockedSets:null,
+          note:"Long head fully stretched overhead. Elbows point forward — do not flare. Full stretch at bottom.",
+          spineFlag:"C6-C7: Monitor cervical at any symptoms. Switch to pushdown if any radiating pain.",
+          variants:{cable:{name:"Overhead Cable Extension",note:"Default. Rope or single handle, high pulley."},freeWeight:{name:"DB Overhead Tricep Extension",note:"Single DB, both hands. Same long head emphasis."},machine:{name:"Overhead Tricep Machine",note:"Excellent if available."},hammerStrength:null},
+          isSuperset:true,subName:"Overhead Extension"},
+      ]},
+      {type:"standalone",label:"1",exercises:[
+        {id:"fri_03",name:"Cable Hammer Curl",reps:"12–15",lockedSets:null,
+          note:"Rope attachment. Neutral grip throughout. Brachialis and brachioradialis emphasis. Full ROM.",
+          spineFlag:null,
+          variants:{cable:{name:"Cable Hammer Curl",note:"Default. Rope, low pulley."},freeWeight:{name:"DB Hammer Curl",note:"Neutral grip. Alternating or simultaneous."},machine:{name:"Neutral Grip Machine Curl",note:"If available."},hammerStrength:null}},
+      ]},
+      {type:"standalone",label:"2",exercises:[
+        {id:"fri_04",name:"DB Skull Crusher",reps:"12",lockedSets:null,
+          note:"Elbows in. Lower DBs to temples. Controlled 2-sec descent. Do not let elbows flare out.",
+          spineFlag:"C6-C7: Monitor at any cervical symptoms. Switch to cable version if needed.",
+          variants:{cable:{name:"Cable Skull Crusher (Lying)",note:"Low pulley, EZ bar or rope. Constant tension throughout ROM."},freeWeight:{name:"DB Skull Crusher",note:"Default. Or EZ bar for wrist comfort."},machine:{name:"Tricep Extension Machine",note:"Selectorized overhead or pushdown variant."},hammerStrength:{name:"Hammer Strength Tricep Press",note:"Plate-loaded. Compound tricep stimulus."}}},
+      ]},
+      {type:"standalone",label:"3",exercises:[
+        {id:"fri_05",name:"Cable Curl — FST-7",reps:"12",lockedSets:7,
+          note:"45s rest between sets. Same weight all 7 sets. Squeeze at peak every rep. Pump is the goal. Hany Rambod FST-7 fascial stretch protocol.",
+          spineFlag:null,
+          variants:{cable:{name:"Cable Curl",note:"Default FST-7 finisher."},freeWeight:{name:"DB Curl",note:"Alternating or simultaneous. Same 45s rest protocol."},machine:{name:"Machine Preacher Curl",note:"Locked elbow. Good for isolating the contraction."},hammerStrength:{name:"Hammer Strength Preacher Curl (Feeder)",note:"Strip to 25% max. Full pump."}}},
+      ]},
+    ],
+    finisher:null,
+    conditioning:null,
+    cooldown:"3 min easy walk. Bicep stretch overhead, tricep cross-body stretch. Week is done.",
+  },
+];
+
+const PROGRAM_NOTES = [
+  "SAT is locked. Family rest day. Non-negotiable.",
+  "SUN is Zone 2 cardio — pool swim preferred. Conversational pace, 45–60 min. Log in Cardio tab.",
+  "Session hard cap: 60–75 minutes. Trim accessories before cutting primary lifts.",
+  "Permanently excluded: conventional deadlifts, barbell back squats, bent-over barbell rows, standing overhead press, weighted pull-ups, heavy pec deck.",
+  "RDLs capped at RPE 6–7. Any lumbar fatigue is a stop signal. Switch to cable pull-through.",
+  "Phase transitions every 2 weeks. Phase 4 deload is mandatory — do not skip.",
+];
+
+const DAY_ORDER=["MON","TUE","WED","THU","FRI"];
+
+
+// ── EXPAND CARD ───────────────────────────────────────────────────
+function ExpandCard({ label, sublabel, influence, color, colorBg, children }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{marginBottom:"10px"}}>
+      <div onClick={()=>setOpen(!open)} style={{background:open?colorBg:C.card,border:`1px solid ${open?color+"55":C.border}`,borderRadius:"6px",padding:"14px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div>
+          <div style={{fontSize:"10px",letterSpacing:"3px",color:open?color:C.textFaint,textTransform:"uppercase",fontWeight:"bold",marginBottom:"3px"}}>{label}</div>
+          <div style={{fontSize:"15px",fontWeight:"bold",color:C.white}}>{sublabel}</div>
+          {influence && <div style={{fontSize:"10px",color:C.textFaint,marginTop:"2px",fontStyle:"italic"}}>{influence}</div>}
+        </div>
+        <div style={{fontSize:"18px",color:open?color:C.textFaint,transition:"transform 0.15s",transform:open?"rotate(45deg)":"none"}}>+</div>
+      </div>
+      {open && (
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderTop:"none",borderRadius:"0 0 6px 6px",padding:"16px"}}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── BODY COMP ENTRY (editable row) ───────────────────────────────
+function BodyCompEntry({entry, origIdx, onSave, onDelete}){
+  const[editing,setEditing]=useState(false);
+  const[wt,setWt]=useState(String(entry.weight||""));
+  const[bf,setBf]=useState(String(entry.bf||""));
+  function save(){
+    onSave(origIdx,{...entry,weight:parseFloat(wt)||entry.weight,bf:bf?parseFloat(bf):null});
+    setEditing(false);
+  }
+  function cancel(){setWt(String(entry.weight||""));setBf(String(entry.bf||""));setEditing(false);}
+  if(editing)return(
+    <div style={{padding:"12px 0",borderBottom:`1px solid ${C.border}`}}>
+      <div style={{fontSize:"11px",color:C.gold,letterSpacing:"1px",textTransform:"uppercase",fontWeight:"bold",marginBottom:"10px"}}>{entry.date} — Editing</div>
+      <div style={{display:"flex",gap:"8px",marginBottom:"10px"}}>
+        <div style={{flex:1}}><div style={{fontSize:"10px",color:C.textMuted,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"4px",fontWeight:"bold"}}>Weight (lbs)</div><input type="number" value={wt} onChange={e=>setWt(e.target.value)} style={{width:"100%"}}/></div>
+        <div style={{flex:1}}><div style={{fontSize:"10px",color:C.textMuted,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"4px",fontWeight:"bold"}}>Body Fat %</div><input type="number" value={bf} onChange={e=>setBf(e.target.value)} style={{width:"100%"}}/></div>
+      </div>
+      <div style={{display:"flex",gap:"8px"}}>
+        <button onClick={save} style={{flex:1,padding:"10px",background:C.gold,border:"none",borderRadius:"6px",color:C.bg,fontSize:"12px",fontWeight:"bold",letterSpacing:"1px",textTransform:"uppercase"}}>SAVE</button>
+        <button onClick={cancel} style={{flex:1,padding:"10px",background:"transparent",border:`1.5px solid ${C.borderMid}`,borderRadius:"6px",color:C.textMuted,fontSize:"12px",fontWeight:"bold",letterSpacing:"1px",textTransform:"uppercase"}}>CANCEL</button>
+        <button onClick={()=>onDelete(origIdx)} style={{padding:"10px 14px",background:"rgba(255,68,68,0.1)",border:"1.5px solid rgba(255,68,68,0.3)",borderRadius:"6px",color:"#FF4444",fontSize:"12px",fontWeight:"bold"}}>✕ DELETE</button>
+      </div>
+    </div>
+  );
+  return(
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
+      <div style={{fontSize:"13px",color:C.textMid,fontWeight:"500"}}>{entry.date}</div>
+      <div style={{display:"flex",gap:"14px",alignItems:"center"}}>
+        <div style={{fontSize:"15px",fontWeight:"bold",color:C.white}}>{entry.weight}<span style={{fontSize:"11px",color:C.textFaint}}> lbs</span></div>
+        {entry.bf&&<div style={{fontSize:"15px",fontWeight:"bold",color:C.gold}}>{entry.bf}<span style={{fontSize:"11px",color:C.textFaint}}>%</span></div>}
+        <button onClick={()=>setEditing(true)} style={{background:"transparent",border:`1.5px solid ${C.borderMid}`,borderRadius:"6px",padding:"5px 10px",color:C.textMuted,fontSize:"11px",fontWeight:"bold",letterSpacing:"1px"}}>EDIT</button>
+      </div>
+    </div>
+  );
+}
+
+// ── CONDITIONING TRACKER ──────────────────────────────────────────
+function ConditioningTracker({sessionKey,condLog,onCondLog,options,phaseType}){
+  const entry=condLog[sessionKey]||{selected:"",note:""};
+  const fullBlock=phaseType==="strength";
+  function update(field,val){const updated={...entry,[field]:val};onCondLog(sessionKey,updated);}
+  return(
+    <div style={{marginTop:"8px"}}>
+      <div style={{fontSize:"12px",letterSpacing:"1px",color:C.gold,textTransform:"uppercase",fontWeight:"bold",marginBottom:"6px"}}>
+        {fullBlock?"10 MIN — Full Block (Strength Week)":"5 MIN"}
+      </div>
+      {options.map((opt,i)=>{
+        const isSelected=entry.selected===opt.name;
+        return(
+          <div key={i} style={{marginBottom:"10px",background:isSelected?"rgba(0,48,135,0.6)":"rgba(0,32,91,0.4)",border:`1.5px solid ${isSelected?C.gold:C.border}`,borderRadius:"8px",padding:"12px 14px",cursor:"pointer"}}
+            onClick={()=>update("selected",isSelected?"":opt.name)}>
+            <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:isSelected?"8px":"0"}}>
+              <div style={{width:"20px",height:"20px",borderRadius:"50%",border:`2px solid ${isSelected?C.gold:C.borderMid}`,background:isSelected?C.gold:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                {isSelected&&<div style={{fontSize:"11px",color:C.bg,fontWeight:"bold"}}>✓</div>}
+              </div>
+              <div>
+                <div style={{fontSize:"14px",fontWeight:"bold",color:C.white}}>{opt.name}</div>
+                <div style={{fontSize:"12px",color:C.textMuted,marginTop:"2px"}}>{opt.protocol}</div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      {entry.selected&&(
+        <div style={{marginTop:"8px"}}>
+          <div style={{fontSize:"12px",color:C.textMid,letterSpacing:"1px",textTransform:"uppercase",fontWeight:"bold",marginBottom:"6px"}}>Notes — time / distance / rounds</div>
+          <textarea rows={2} placeholder="e.g. 4 rounds, 8 min total, 155 HR avg..." value={entry.note||""} onChange={e=>update("note",e.target.value)}/>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── CARDIO LOG ───────────────────────────────────────────────────
+const CARDIO_TYPES=["Pool Swim","Ruck","Assault Bike","Row","Run","Zone 2 Bike","MTNTOUGH Circuit","Other"];
+function CardioLogView({cardioLog,onCardioLog}){
+  const[form,setForm]=useState({date:new Date().toLocaleDateString(),type:"",duration:"",avgHR:"",maxHR:"",calories:"",distance:"",trainingEffect:"",notes:""});
+  const[saved,setSaved]=useState(false);
+  function update(k,v){setForm(f=>({...f,[k]:v}));setSaved(false);}
+  function save(){
+    if(!form.type||!form.duration){return;}
+    const entry={...form,timestamp:Date.now()};
+    const newLog=[...cardioLog,entry];onCardioLog(newLog);setSaved(true);
+    setForm({date:new Date().toLocaleDateString(),type:"",duration:"",avgHR:"",maxHR:"",calories:"",distance:"",trainingEffect:"",notes:""});
+  }
+  const recent=[...cardioLog].reverse().slice(0,10);
+  return(
+    <div>
+      <div style={{fontSize:"13px",color:C.textMid,lineHeight:1.6,marginBottom:"20px"}}>Log any cardio session — gym days, Sundays, or whenever. Pull Garmin metrics and record them here.</div>
+      <div style={{marginBottom:"16px"}}>
+        <div style={{fontSize:"12px",letterSpacing:"2px",color:C.gold,textTransform:"uppercase",fontWeight:"bold",marginBottom:"10px"}}>Cardio Type</div>
+        <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+          {CARDIO_TYPES.map(t=>(
+            <button key={t} onClick={()=>update("type",form.type===t?"":t)}
+              style={{padding:"8px 12px",background:form.type===t?C.gold:"transparent",border:`1.5px solid ${form.type===t?C.gold:C.borderMid}`,borderRadius:"6px",color:form.type===t?C.bg:C.textMid,fontSize:"12px",fontWeight:form.type===t?"bold":"normal"}}>
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{fontSize:"12px",letterSpacing:"2px",color:C.gold,textTransform:"uppercase",fontWeight:"bold",marginBottom:"10px"}}>Garmin Metrics</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px",marginBottom:"12px"}}>
+        {[["Duration (min)","duration","45"],["Avg HR (bpm)","avgHR","132"],["Max HR (bpm)","maxHR","158"],["Calories","calories","420"],["Distance (mi)","distance","2.1"],["Training Effect","trainingEffect","2.8 Aerobic"]].map(([lbl,key,ph])=>(
+          <div key={key}>
+            <div style={{fontSize:"11px",color:C.textMuted,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"5px",fontWeight:"bold"}}>{lbl}</div>
+            <input type="text" placeholder={ph} value={form[key]} onChange={e=>update(key,e.target.value)}/>
+          </div>
+        ))}
+      </div>
+      <div style={{marginBottom:"16px"}}>
+        <div style={{fontSize:"12px",color:C.textMuted,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"6px",fontWeight:"bold"}}>Notes</div>
+        <textarea rows={2} placeholder="Felt strong, hit Zone 2 the whole time..." value={form.notes} onChange={e=>update("notes",e.target.value)}/>
+      </div>
+      <button onClick={save} disabled={!form.type||!form.duration}
+        style={{width:"100%",padding:"16px",background:form.type&&form.duration?C.gold:"rgba(255,199,44,0.3)",border:"none",borderRadius:"8px",color:form.type&&form.duration?C.bg:"rgba(255,255,255,0.3)",fontSize:"13px",fontWeight:"bold",letterSpacing:"2px",textTransform:"uppercase",marginBottom:"24px"}}>
+        LOG SESSION
+      </button>
+      {saved&&<div style={{background:C.greenLight,border:`1px solid ${C.greenBorder}`,borderRadius:"6px",padding:"10px 14px",marginBottom:"16px",fontSize:"13px",color:C.green,fontWeight:"bold"}}>✓ Session logged</div>}
+      {recent.length>0&&(
+        <div>
+          <div style={{fontSize:"12px",letterSpacing:"2px",color:C.gold,textTransform:"uppercase",fontWeight:"bold",marginBottom:"12px"}}>Recent Cardio</div>
+          {recent.map((e,i)=>(
+            <div key={i} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"14px",marginBottom:"10px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"8px"}}>
+                <div style={{fontSize:"15px",fontWeight:"bold",color:C.white}}>{e.type}</div>
+                <div style={{fontSize:"11px",color:C.textMuted}}>{e.date}</div>
+              </div>
+              <div style={{display:"flex",gap:"14px",flexWrap:"wrap"}}>
+                {e.duration&&<div style={{fontSize:"12px",color:C.textMid}}><span style={{color:C.gold,fontWeight:"bold"}}>{e.duration}</span> min</div>}
+                {e.avgHR&&<div style={{fontSize:"12px",color:C.textMid}}>Avg <span style={{color:C.gold,fontWeight:"bold"}}>{e.avgHR}</span> bpm</div>}
+                {e.maxHR&&<div style={{fontSize:"12px",color:C.textMid}}>Max <span style={{color:C.gold,fontWeight:"bold"}}>{e.maxHR}</span> bpm</div>}
+                {e.calories&&<div style={{fontSize:"12px",color:C.textMid}}><span style={{color:C.gold,fontWeight:"bold"}}>{e.calories}</span> cal</div>}
+                {e.distance&&<div style={{fontSize:"12px",color:C.textMid}}><span style={{color:C.gold,fontWeight:"bold"}}>{e.distance}</span> mi</div>}
+                {e.trainingEffect&&<div style={{fontSize:"12px",color:C.textMid}}>TE <span style={{color:C.gold,fontWeight:"bold"}}>{e.trainingEffect}</span></div>}
+              </div>
+              {e.notes&&<div style={{fontSize:"12px",color:C.textMuted,marginTop:"6px",fontStyle:"italic"}}>{e.notes}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
+// ── BODY COMP VIEW ─────────────────────────────────────────────
+function BodyCompView({ phase }) {
+  const [log, setLog] = useState(() => LS.get("tm_bodycomp") || []);
+  const [wt, setWt] = useState(""); const [bf, setBf] = useState(""); const [note, setNote] = useState("");
+  const [neck, setNeck] = useState(""); const [waist, setWaist] = useState(""); const [height, setHeight] = useState(""); const [navyBF, setNavyBF] = useState("");
+
+  function calcNavyBF() {
+    const n = parseFloat(neck), w = parseFloat(waist), h = parseFloat(height);
+    if (!n||!w||!h||w<=n) return;
+    const result = (86.010 * Math.log10(w - n) - 70.041 * Math.log10(h) + 36.76).toFixed(1);
+    setNavyBF(result); setBf(result);
+  }
+  function addEntry() {
+    if (!wt) return;
+    const entry = { date: new Date().toLocaleDateString(), weight: parseFloat(wt), bf: bf ? parseFloat(bf) : null, note };
+    const newLog = [...log, entry]; setLog(newLog); LS.set("tm_bodycomp", newLog);
+    setWt(""); setBf(""); setNote("");
+  }
+
+  const recent = [...log].slice(-10);
+  const minW = recent.length ? Math.min(...recent.map(e=>e.weight)) - 5 : 180;
+  const maxW = recent.length ? Math.max(...recent.map(e=>e.weight)) + 5 : 230;
+
+  return (
+    <div style={{padding:"20px 18px"}}>
+      <div style={{fontSize:"10px",letterSpacing:"3px",color:C.textFaint,textTransform:"uppercase",marginBottom:"20px",fontWeight:"bold"}}>Body Composition</div>
+      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"18px",marginBottom:"14px"}}>
+        <div style={{fontSize:"10px",letterSpacing:"2px",color:phase.color,textTransform:"uppercase",fontWeight:"bold",marginBottom:"4px"}}>Navy BF% Calculator</div>
+        <div style={{fontSize:"11px",color:C.textFaint,marginBottom:"14px"}}>Neck · Waist · Height in inches → auto-populates BF%</div>
+        <div style={{display:"flex",gap:"8px",marginBottom:"12px"}}>
+          {[["Neck (in)",neck,setNeck,"15.5"],["Waist (in)",waist,setWaist,"34.0"],["Height (in)",height,setHeight,"71"]].map(([lbl,val,set,ph])=>(
+            <div key={lbl} style={{flex:1}}>
+              <div style={{fontSize:"10px",color:C.textFaint,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"5px"}}>{lbl}</div>
+              <input type="number" placeholder={ph} value={val} onChange={e=>set(e.target.value)} style={{width:"100%"}}/>
+            </div>
+          ))}
+        </div>
+        <button onClick={calcNavyBF} style={{width:"100%",padding:"12px",background:phase.color,border:"none",borderRadius:"6px",color:C.white,fontSize:"11px",fontWeight:"bold",letterSpacing:"2px",textTransform:"uppercase",marginBottom:navyBF?"12px":"0"}}>CALCULATE</button>
+        {navyBF && (
+          <div style={{background:C.blueLight,border:`1px solid ${C.blueBorder}`,borderLeft:`3px solid ${C.blue}`,borderRadius:"6px",padding:"12px 14px"}}>
+            <div style={{fontSize:"10px",letterSpacing:"2px",color:C.blue,textTransform:"uppercase",marginBottom:"3px",fontWeight:"bold"}}>Navy Method Result</div>
+            <div style={{fontSize:"26px",fontWeight:"bold",color:C.white}}>{navyBF}% <span style={{fontSize:"13px",color:C.textMuted,fontWeight:"normal"}}>body fat — auto-populated below</span></div>
+          </div>
+        )}
+      </div>
+      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"18px",marginBottom:"24px"}}>
+        <div style={{fontSize:"10px",letterSpacing:"2px",color:phase.color,textTransform:"uppercase",fontWeight:"bold",marginBottom:"14px"}}>Log Today</div>
+        <div style={{display:"flex",gap:"8px",marginBottom:"12px"}}>
+          <div style={{flex:1}}><div style={{fontSize:"10px",color:C.textFaint,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"5px"}}>Weight (lbs)</div><input type="number" placeholder="217" value={wt} onChange={e=>setWt(e.target.value)} style={{width:"100%"}}/></div>
+          <div style={{flex:1}}><div style={{fontSize:"10px",color:C.textFaint,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"5px"}}>Body Fat %</div><input type="number" placeholder="23.5" value={bf} onChange={e=>setBf(e.target.value)} style={{width:"100%",borderColor:navyBF&&bf===navyBF?C.blue:undefined}}/></div>
+        </div>
+        <button onClick={addEntry} style={{width:"100%",padding:"14px",background:phase.color,border:"none",borderRadius:"6px",color:C.white,fontSize:"11px",fontWeight:"bold",letterSpacing:"2px",textTransform:"uppercase"}}>LOG ENTRY</button>
+      </div>
+
+      {recent.length >= 2 && (() => {
+        const W = 320; const H = 120; const PAD = 20;
+        const chartW = W - PAD*2; const chartH = H - PAD*2;
+        return (
+          <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"18px",marginBottom:"20px",overflowX:"auto"}}>
+            <div style={{fontSize:"10px",letterSpacing:"2px",color:C.textFaint,textTransform:"uppercase",fontWeight:"bold",marginBottom:"14px"}}>Weight Trend</div>
+            <svg width={W} height={H}>
+              {recent.map((e,i)=>{
+                const x = PAD + (i/(recent.length-1))*chartW;
+                const y = PAD + chartH - ((e.weight-minW)/(maxW-minW))*chartH;
+                return <circle key={i} cx={x} cy={y} r={4} fill={phase.color}/>;
+              })}
+              {recent.slice(1).map((e,i)=>{
+                const x1 = PAD + (i/(recent.length-1))*chartW;
+                const y1 = PAD + chartH - ((recent[i].weight-minW)/(maxW-minW))*chartH;
+                const x2 = PAD + ((i+1)/(recent.length-1))*chartW;
+                const y2 = PAD + chartH - ((e.weight-minW)/(maxW-minW))*chartH;
+                return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={phase.color} strokeWidth={2} opacity={0.6}/>;
+              })}
+            </svg>
+          </div>
+        );
+      })()}
+
+      {log.length > 0 && (
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"18px"}}>
+          <div style={{fontSize:"10px",letterSpacing:"2px",color:C.textFaint,textTransform:"uppercase",fontWeight:"bold",marginBottom:"14px"}}>Log History</div>
+          {[...log].reverse().slice(0,10).map((e,i)=>(
+            <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
+              <div style={{fontSize:"12px",color:C.textMuted}}>{e.date}</div>
+              <div style={{display:"flex",gap:"16px"}}>
+                <div style={{fontSize:"14px",fontWeight:"bold",color:C.white}}>{e.weight}<span style={{fontSize:"11px",color:C.textFaint}}> lbs</span></div>
+                {e.bf && <div style={{fontSize:"14px",fontWeight:"bold",color:phase.color}}>{e.bf}<span style={{fontSize:"11px",color:C.textFaint}}>%</span></div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── CSV EXPORT ────────────────────────────────────────────────────
+// ── CSV EXPORT ────────────────────────────────────────────────────
+function exportCSV(sessionLog, readinessLog, bodyCompLog, week) {
+  const rows = [["RAYMOND — TACTICAL MONSTER PROTOCOL"],["Exported:",new Date().toLocaleDateString()],["Week:",week],[]];
+  rows.push(["SESSION LOG"]);
+  rows.push(["Exercise ID","Week","Set","Weight (lbs)","Reps","RIR"]);
+  DAY_ORDER.forEach(day => {
+    const s = SESSIONS[day];
+    if (!s) return;
+    (s.exercises||[]).forEach(ex => {
+      if (ex.noLog || typeof ex.sets !== "number") return;
+      const exId = ex.id;
+      ["a","b"].forEach(side => {
+        const key = `${exId}_w${week}_${side}`;
+        const log = sessionLog[key] || [];
+        log.forEach((s, i) => {
+          if (s && s.weight) rows.push([exId + side, "Week " + week, "Set " + (i+1), s.weight, s.reps||"", s.rir||""]);
+        });
+      });
+    });
+  });
+  rows.push([]);
+  rows.push(["READINESS LOG"]); rows.push(["Date","Score","Tier"]);
+  Object.entries(readinessLog).forEach(([date, entry]) => { rows.push([date, entry.score, entry.tier]); });
+  rows.push([]);
+  rows.push(["BODY COMPOSITION LOG"]); rows.push(["Date","Weight (lbs)","Body Fat %"]);
+  (bodyCompLog||[]).forEach(entry => { rows.push([entry.date, entry.weight, entry.bf||""]); });
+  const csv = rows.map(r => r.map(cell => `"${String(cell||"").replace(/"/g,'""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], {type:"text/csv"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `raymond_tm_week${week}_${new Date().toISOString().split("T")[0]}.csv`; a.click();
+  URL.revokeObjectURL(url);
+}
+
+
+// ── MAIN APP ──────────────────────────────────────────────────────
+function App(){
+  const[view,setView]=useState("session");
+  const[activeDay,setActiveDay]=useState("MON");
+  const[week,setWeek]=useState(()=>LS.get("tm_week")||1);
+  const[sessionLog,setSessionLog]=useState(()=>LS.get("tm_log")||{});
+  const[completed,setCompleted]=useState(()=>LS.get("tm_completed")||{});
+  const[readinessLog,setReadinessLog]=useState(()=>LS.get("tm_readiness")||{});
+  const[condLog,setCondLog]=useState(()=>LS.get("tm_cond")||{});
+  const[bandLog,setBandLog]=useState(()=>LS.get("tm_bands")||{});
+  const[cardioLog,setCardioLog]=useState(()=>LS.get("tm_cardio")||[]);
+  const[variantSelections,setVariantSelections]=useState(()=>LS.get("tm_variants")||{});
+  const[pickerEx,setPickerEx]=useState(null); // which exercise is being picked
+  const[pickerSide,setPickerSide]=useState(null); // null=whole ex, "a"=A side, "b"=B side
+  const[screenFlash,setScreenFlash]=useState(false);
+  const[ri,setRi]=useState({bodyBattery:70,sleepScore:75,trainingReadiness:65,hrv:"favorable",restingHR:"at",soreness:2,motivation:8});
+  const[todayScore,setTodayScore]=useState(null);
+
+  const phase=getPhase(week);
+  const phaseObj=PHASES[getPhaseIdxFromWeek(week)];
+  const session=PROGRAM.find(d=>d.day===activeDay)||PROGRAM[0];
+  const today=new Date().toDateString();
+  const isComplete=!!completed[activeDay+"_w"+week];
+  globalFlashFn=()=>{setScreenFlash(true);setTimeout(()=>setScreenFlash(false),3500);};
+
+  function setWeekSave(w){setWeek(w);LS.set("tm_week",w);}
+  function getLogA(id){return sessionLog[id+"_w"+week+"_a"]||[];}
+  function getLogB(id){return sessionLog[id+"_w"+week+"_b"]||[];}
+  function handleLog(id,ab,si,field,val){
+    const key=id+"_w"+week+"_"+ab;const curr=sessionLog[key]||[];
+    const upd=[...curr];if(!upd[si])upd[si]={};upd[si][field]=val;
+    const nl={...sessionLog,[key]:upd};setSessionLog(nl);LS.set("tm_log",nl);
+  }
+  function markComplete(){
+    const k=activeDay+"_w"+week;
+    const nc={...completed,[k]:{date:today,ts:Date.now()}};setCompleted(nc);LS.set("tm_completed",nc);
+  }
+  function handleReadiness(){
+    const score=scoreReadiness(ri);
+    const entry={score,tier:getTier(score).tier,date:today};
+    const nl={...readinessLog,[today]:entry};setReadinessLog(nl);setTodayScore(score);LS.set("tm_readiness",nl);
+  }
+  function handleCondLog(key,val){const nl={...condLog,[key]:val};setCondLog(nl);LS.set("tm_cond",nl);}
+  function handleBandLog(key,val){const nl={...bandLog,[key]:val};setBandLog(nl);LS.set("tm_bands",nl);}
+  function handleCardioLog(log){setCardioLog(log);LS.set("tm_cardio",log);}
+  function handleVariantSelect(exId,variantKey){
+    const nl=variantKey?{...variantSelections,[exId]:variantKey}:Object.fromEntries(Object.entries({...variantSelections}).filter(([k])=>k!==exId));
+    setVariantSelections(nl);LS.set("tm_variants",nl);
+  }
+
+  // ── LABEL STYLE ─────────────────────────────────────────────────
+  const sectionLabel={fontSize:"12px",letterSpacing:"2px",color:C.gold,textTransform:"uppercase",fontWeight:"bold",marginBottom:"10px",display:"block"};
+
+  return(
+    <>
+    <div style={{minHeight:"100vh",background:screenFlash?"#1A4A00":C.bg,color:C.white,paddingBottom:"80px",transition:screenFlash?"background 0.05s":"background 0.4s"}}>
+
+      {/* ── TOP HEADER ── */}
+      <div style={{background:C.surfaceMid,borderBottom:`2px solid ${C.gold}`,padding:"18px 18px 0",position:"sticky",top:0,zIndex:20}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"14px"}}>
+          <div>
+            <div style={{fontSize:"10px",letterSpacing:"4px",color:C.textMuted,textTransform:"uppercase",marginBottom:"4px"}}>AmFam Swift Creek</div>
+            <div style={{fontSize:"18px",fontWeight:"bold",letterSpacing:"1px",color:C.white}}>TACTICAL MONSTER</div>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:"6px"}}>
+            <div style={{fontSize:"10px",color:C.textMuted,letterSpacing:"2px",textTransform:"uppercase",fontWeight:"bold"}}>WEEK</div>
+            <div style={{display:"flex",gap:"3px",flexWrap:"wrap",justifyContent:"flex-end"}}>
+              {[...Array(16)].map((_,i)=>{
+                const wk=i+1;const isA=week===wk;
+                const wc=[C.gold,"#FF6B6B",C.accent,C.green][getPhaseIdxFromWeek(wk)];
+                return(<div key={i} onClick={()=>setWeekSave(wk)} style={{width:"22px",height:"22px",borderRadius:"4px",display:"flex",alignItems:"center",justifyContent:"center",background:isA?wc:"transparent",border:`1.5px solid ${isA?wc:C.borderMid}`,color:isA?C.bg:C.textMuted,fontSize:"10px",fontWeight:"bold",cursor:"pointer"}}>{wk}</div>);
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Phase banner */}
+        <div style={{background:C.goldLight,border:`1.5px solid ${C.goldBorder}`,borderLeft:`4px solid ${C.gold}`,borderRadius:"6px",padding:"10px 14px",marginBottom:"14px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <div style={{fontSize:"10px",letterSpacing:"2px",color:C.gold,textTransform:"uppercase",fontWeight:"bold"}}>CYCLE {phase.cycleNum} — {phase.focus}</div>
+              <div style={{fontSize:"14px",color:C.white,marginTop:"2px",fontWeight:"bold"}}>RPE {phase.rpe} · {phase.sets} sets · {phase.reps}</div>
+            </div>
+            <div style={{fontSize:"12px",color:C.textMid,maxWidth:"130px",textAlign:"right",lineHeight:1.4}}>{phase.note}</div>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div style={{display:"flex",borderBottom:`1px solid ${C.border}`}}>
+          {[["session","SESSION"],["cardio","CARDIO"],["readiness","READINESS"],["tracker","TRACKER"],["bodycomp","BODY COMP"]].map(([v,l])=>(
+            <button key={v} onClick={()=>setView(v)} style={{flex:1,padding:"11px 2px",background:"transparent",border:"none",borderBottom:`2.5px solid ${view===v?C.gold:"transparent"}`,color:view===v?C.gold:C.textMuted,fontSize:"9px",letterSpacing:"1px",textTransform:"uppercase",fontWeight:view===v?"bold":"normal"}}>
+              {l}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ══ SESSION VIEW ══ */}
+      {view==="session"&&(
+        <div>
+          {/* Day tabs — uniform styling */}
+          <div style={{padding:"14px 18px",background:C.surfaceMid,borderBottom:`1px solid ${C.border}`,display:"flex",gap:"6px"}}>
+            {DAY_ORDER.map(d=>{
+              const done=!!completed[d+"_w"+week];const isA=activeDay===d;
+              return(
+                <button key={d} onClick={()=>setActiveDay(d)} style={{flex:1,padding:"11px 4px",background:isA?C.gold:"transparent",border:`1.5px solid ${isA?C.gold:done?C.green:C.borderMid}`,borderRadius:"6px",color:isA?C.bg:done?C.green:C.textMid,fontSize:"11px",fontWeight:"bold",letterSpacing:"1px",textTransform:"uppercase"}}>
+                  {done&&!isA?"✓":d}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Session header — uniform */}
+          <div style={{padding:"20px 18px 16px",background:"rgba(0,40,120,0.5)",borderBottom:`1px solid ${C.border}`}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"16px"}}>
+              <div>
+                <div style={{fontSize:"26px",fontWeight:"bold",color:session.color||C.gold,lineHeight:1.1}}>{session.label}</div>
+                <div style={{fontSize:"14px",color:C.textMid,marginTop:"4px"}}>{session.tag}</div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                {session.tag&&session.tag.toLowerCase().includes("metabolic")&&<div style={{fontSize:"11px",color:"#FF8C42",fontWeight:"bold",letterSpacing:"1px",marginBottom:"4px"}}>HIGH DEMAND</div>}
+                {isComplete&&<div style={{fontSize:"11px",color:C.green,fontWeight:"bold",letterSpacing:"1px"}}>✓ COMPLETE</div>}
+              </div>
+            </div>
+          </div>
+
+          {/* Warm-up */}
+          <div style={{padding:"16px 18px",borderBottom:`1px solid ${C.border}`,background:"rgba(0,32,91,0.4)"}}>
+            <div style={sectionLabel}>Warm-Up Protocol</div>
+            {session.warmup.map((item,i)=>(
+              <div key={i} style={{padding:"10px 0",borderBottom:i<session.warmup.length-1?`1px solid ${C.border}`:"none"}}>
+                <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"4px"}}>
+                  <span style={{fontSize:"10px",letterSpacing:"1px",color:C.bg,background:item.equipment==="BAND"?C.gold:item.equipment==="CABLE"?C.accent:item.equipment==="BARBELL"?"#FF8C42":C.green,padding:"2px 7px",borderRadius:"3px",fontWeight:"bold",flexShrink:0}}>{item.equipment}</span>
+                  <span style={{fontSize:"15px",fontWeight:"bold",color:C.white}}>{item.item}</span>
+                </div>
+                <div style={{fontSize:"13px",color:C.textMid,lineHeight:1.5,paddingLeft:"0px"}}>{item.notes}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Exercise Groups */}
+          <div style={{padding:"0 18px",background:"rgba(0,32,91,0.3)"}}>
+            {(session.groups||[]).map((group,gi)=>{
+              const isGrouped=group.type!=="standalone";
+              const groupColors={superset:C.gold,giant:"#E67E22"};
+              const groupColor=groupColors[group.type]||C.gold;
+              return(
+                <div key={gi} style={{marginBottom:"16px"}}>
+                  {isGrouped&&(
+                    <div style={{display:"flex",alignItems:"flex-start",gap:"8px",marginBottom:"8px",flexWrap:"wrap"}}>
+                      <div style={{fontSize:"9px",fontWeight:"bold",letterSpacing:"2px",textTransform:"uppercase",color:groupColor,background:groupColor+"18",border:`1px solid ${groupColor}40`,borderRadius:"4px",padding:"3px 8px",flexShrink:0}}>
+                        {group.label} — {group.type==="giant"?"GIANT SET":"SUPERSET"}
+                      </div>
+                      {group.groupNote&&<div style={{fontSize:"11px",color:C.textMuted,lineHeight:1.4,flex:1,minWidth:"160px"}}>{group.groupNote}</div>}
+                    </div>
+                  )}
+                  <div style={isGrouped?{border:`1px solid ${groupColor}30`,borderRadius:"8px",padding:"10px 10px 4px",background:groupColor+"08"}:{}}>
+                    {group.exercises.map((ex,ei)=>(
+                      <ExerciseRow key={ex.id} ex={ex} week={week} phase={phase}
+                        sessionLog={sessionLog} onLog={handleLog}
+                        bandLog={bandLog} onBandLog={handleBandLog}
+                        variantSelections={variantSelections} onVariantSelect={handleVariantSelect}
+                        onOpenPicker={(ex,side)=>{setPickerEx(ex);setPickerSide(side||null);}}
+                        groupType={group.type} isLast={ei===group.exercises.length-1}/>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Finisher + Conditioning + Complete */}
+          <div style={{padding:"16px 18px",background:"rgba(0,32,91,0.3)"}}>
+            {session.finisher&&(
+              <ExpandCard label="PUMP FINISHER" sublabel={session.finisher.name} influence={session.finisher.influence}>
+                <div style={{fontSize:"11px",letterSpacing:"2px",color:C.gold,textTransform:"uppercase",fontWeight:"bold",marginBottom:"6px"}}>{session.finisher.duration}</div>
+                <div style={{fontSize:"14px",color:C.white,lineHeight:1.6}}>{session.finisher.protocol}</div>
+              </ExpandCard>
+            )}
+
+            {session.conditioning&&(
+              <ExpandCard label="CONDITIONING" sublabel={phase.type==="strength"?"10 MIN — Full Block":"5 MIN"}>
+                <ConditioningTracker
+                  sessionKey={activeDay+"_w"+week}
+                  condLog={condLog} onCondLog={handleCondLog}
+                  options={session.conditioning.options}
+                  phaseType={phase.type}/>
+              </ExpandCard>
+            )}
+
+            {"" /* removed old guard */
+              <div style={{background:C.surface,border:`1.5px solid ${C.borderMid}`,borderRadius:"8px",padding:"16px",marginBottom:"10px"}}>
+                <div style={{fontSize:"11px",letterSpacing:"2px",color:C.gold,textTransform:"uppercase",fontWeight:"bold",marginBottom:"6px"}}>CONDITIONING / FINISHER</div>
+                <div style={{fontSize:"15px",fontWeight:"bold",color:C.white,marginBottom:"6px"}}>{session.finisher?.name||"Sled Push — MTNTOUGH Protocol"}</div>
+                <ConditioningTracker
+                  sessionKey={activeDay+"_w"+week}
+                  condLog={condLog} onCondLog={handleCondLog}
+                  options={[{name:"Sled Push",protocol:"8–10 × 15–20m, moderate load. Walk 60–90 sec recovery."}]}
+                  phaseType={phase.type}/>
+              </div>
+            )}
+
+            {session.cooldown&&(
+              <ExpandCard label="COOL-DOWN" sublabel="Post-Session Protocol">
+                <div style={{fontSize:"14px",color:C.textMid,lineHeight:1.7}}>{session.cooldown}</div>
+              </ExpandCard>
+
+            {/* Standing Rules */}
+            <ExpandCard label="STANDING RULES" sublabel="Program Constraints">
+              {PROGRAM_NOTES.map((note,i)=>(
+                <div key={i} style={{display:"flex",gap:"10px",marginBottom:"8px",alignItems:"flex-start"}}>
+                  <div style={{color:C.scarlet||"#FF4444",fontWeight:"bold",fontSize:"12px",flexShrink:0,marginTop:"1px"}}>—</div>
+                  <div style={{fontSize:"13px",color:C.textMid,lineHeight:1.5}}>{note}</div>
+                </div>
+              ))}
+            </ExpandCard>
+            )}
+
+            <button onClick={markComplete} disabled={isComplete} style={{width:"100%",padding:"16px",background:isComplete?C.greenLight:C.gold,border:`1.5px solid ${isComplete?C.green:C.gold}`,borderRadius:"8px",color:isComplete?C.green:C.bg,fontSize:"13px",fontWeight:"bold",letterSpacing:"2px",textTransform:"uppercase",marginTop:"6px"}}>
+              {isComplete?"✓ SESSION COMPLETE":"MARK SESSION COMPLETE"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ══ CARDIO VIEW ══ */}
+      {view==="cardio"&&(
+        <div style={{padding:"20px 18px"}}>
+          <div style={sectionLabel}>Cardio Log</div>
+          <CardioLogView cardioLog={cardioLog} onCardioLog={handleCardioLog}/>
+        </div>
+      )}
+
+      {/* ══ READINESS VIEW ══ */}
+      {view==="readiness"&&(
+        <div style={{padding:"20px 18px"}}>
+          <div style={sectionLabel}>Daily Readiness — 70 Point System</div>
+
+          {todayScore!==null&&(()=>{
+            const t=getTier(todayScore);
+            return(
+              <div style={{background:t.bg,border:`1.5px solid ${t.color}55`,borderLeft:`4px solid ${t.color}`,borderRadius:"8px",padding:"16px",marginBottom:"20px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div>
+                    <div style={{fontSize:"12px",letterSpacing:"2px",color:t.color,textTransform:"uppercase",fontWeight:"bold",marginBottom:"4px"}}>{t.tier} — {t.label}</div>
+                    <div style={{fontSize:"13px",color:C.textMid,lineHeight:1.5}}>{t.note}</div>
+                  </div>
+                  <div style={{fontSize:"40px",fontWeight:"bold",color:t.color}}>{todayScore}<span style={{fontSize:"14px",color:C.textFaint}}>/70</span></div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {[{label:"Body Battery (Garmin)",key:"bodyBattery",ph:"0–100"},{label:"Sleep Score (Garmin)",key:"sleepScore",ph:"0–100"},{label:"Training Readiness (Garmin)",key:"trainingReadiness",ph:"0–100"}].map(f=>(
+            <div key={f.key} style={{background:C.surface,border:`1.5px solid ${C.borderMid}`,borderRadius:"8px",padding:"14px 16px",marginBottom:"10px"}}>
+              <div style={{fontSize:"12px",color:C.textMid,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"8px",fontWeight:"bold"}}>{f.label}</div>
+              <input type="number" placeholder={f.ph} value={ri[f.key]||""} onChange={e=>setRi({...ri,[f.key]:parseFloat(e.target.value)||0})} style={{textAlign:"left"}}/>
+            </div>
+          ))}
+
+          {[{label:"HRV Status",key:"hrv",opts:[["favorable","Favorable"],["balanced","Balanced"],["unbalanced","Unbalanced"],["poor","Poor"]]},{label:"Resting HR vs 30-Day Avg",key:"restingHR",opts:[["at","At / Below"],["1-3","1–3 Above"],["4-6","4–6 Above"],["7+","7+ Above"]]}].map(f=>(
+            <div key={f.key} style={{background:C.surface,border:`1.5px solid ${C.borderMid}`,borderRadius:"8px",padding:"14px 16px",marginBottom:"10px"}}>
+              <div style={{fontSize:"12px",color:C.textMid,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"10px",fontWeight:"bold"}}>{f.label}</div>
+              <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+                {f.opts.map(([val,lbl])=>(
+                  <button key={val} onClick={()=>setRi({...ri,[f.key]:val})} style={{flex:1,minWidth:"70px",padding:"10px 6px",background:ri[f.key]===val?C.gold:"transparent",border:`1.5px solid ${ri[f.key]===val?C.gold:C.borderMid}`,borderRadius:"6px",color:ri[f.key]===val?C.bg:C.textMid,fontSize:"12px",fontWeight:ri[f.key]===val?"bold":"normal"}}>{lbl}</button>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {[{label:"Soreness / Pain (0–10)",key:"soreness",hint:"0 = none  ·  10 = severe"},{label:"Motivation (0–10)",key:"motivation",hint:"0 = none  ·  10 = fired up"}].map(f=>(
+            <div key={f.key} style={{background:C.surface,border:`1.5px solid ${C.borderMid}`,borderRadius:"8px",padding:"14px 16px",marginBottom:"10px"}}>
+              <div style={{fontSize:"12px",color:C.textMid,letterSpacing:"1px",textTransform:"uppercase",marginBottom:"3px",fontWeight:"bold"}}>{f.label}</div>
+              <div style={{fontSize:"11px",color:C.textFaint,marginBottom:"10px",fontWeight:"500"}}>{f.hint}</div>
+              <input type="number" placeholder="0–10" min={0} max={10} value={ri[f.key]||""} onChange={e=>setRi({...ri,[f.key]:parseFloat(e.target.value)||0})} style={{textAlign:"left"}}/>
+            </div>
+          ))}
+
+          <button onClick={handleReadiness} style={{width:"100%",padding:"16px",background:C.gold,border:"none",borderRadius:"8px",color:C.bg,fontSize:"13px",fontWeight:"bold",letterSpacing:"2px",textTransform:"uppercase",marginBottom:"24px"}}>CALCULATE READINESS</button>
+
+          {todayScore!==null&&(()=>{
+            const inputs=[
+              ["Body Battery",parseFloat((ri.bodyBattery/10).toFixed(1))],
+              ["Sleep Score",parseFloat((ri.sleepScore/10).toFixed(1))],
+              ["Training Readiness",parseFloat((ri.trainingReadiness/10).toFixed(1))],
+              ["HRV Status",({favorable:10,balanced:7,unbalanced:4,poor:1})[ri.hrv]||5],
+              ["Resting HR",({at:10,"1-3":7,"4-6":4,"7+":1})[ri.restingHR]||5],
+              ["Soreness",parseFloat((10-ri.soreness).toFixed(1))],
+              ["Motivation",parseFloat(ri.motivation.toFixed(1))],
+            ];
+            return(
+              <div style={{background:C.surface,border:`1.5px solid ${C.borderMid}`,borderRadius:"8px",padding:"16px",marginBottom:"24px"}}>
+                <div style={sectionLabel}>Score Breakdown</div>
+                {inputs.map(([label,score])=>(
+                  <div key={label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:`1px solid ${C.border}`}}>
+                    <div style={{fontSize:"13px",color:C.textMid,fontWeight:"500"}}>{label}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+                      <div style={{width:"80px",height:"5px",background:"rgba(255,255,255,0.1)",borderRadius:"2px",overflow:"hidden"}}>
+                        <div style={{width:`${(score/10)*100}%`,height:"100%",background:score>=7?C.green:score>=4?C.gold:"#FF4444",borderRadius:"2px"}}/>
+                      </div>
+                      <div style={{fontSize:"16px",fontWeight:"bold",color:score>=7?C.green:score>=4?C.gold:"#FF4444",minWidth:"28px",textAlign:"right"}}>{score}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
+          {Object.keys(readinessLog).length>0&&(
+            <div>
+              <div style={sectionLabel}>Recent History</div>
+              {Object.entries(readinessLog).slice(-5).reverse().map(([date,entry])=>{
+                const t=getTier(entry.score);
+                return(
+                  <div key={date} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:`1px solid ${C.border}`}}>
+                    <div style={{fontSize:"13px",color:C.textMid,fontWeight:"500"}}>{date}</div>
+                    <div style={{display:"flex",gap:"14px",alignItems:"center"}}>
+                      <div style={{fontSize:"11px",color:t.color,letterSpacing:"1px",fontWeight:"bold"}}>{entry.tier}</div>
+                      <div style={{fontSize:"17px",color:t.color,fontWeight:"bold"}}>{entry.score}<span style={{fontSize:"11px",color:C.textFaint}}>/70</span></div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══ TRACKER VIEW ══ */}
+      {view==="tracker"&&(
+        <div style={{padding:"20px 18px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"20px"}}>
+            <div style={sectionLabel}>Week {week} — {phase.name}</div>
+            <button onClick={()=>exportCSV(sessionLog,readinessLog,LS.get("tm_bodycomp")||[],condLog,cardioLog,week)} style={{background:C.surfaceMid,border:`1.5px solid ${C.borderMid}`,borderRadius:"6px",padding:"10px 16px",color:C.white,fontSize:"11px",letterSpacing:"1px",textTransform:"uppercase",fontWeight:"bold"}}>⬇ CSV</button>
+          </div>
+
+          {/* Completion grid */}
+          <div style={{background:C.surface,border:`1.5px solid ${C.borderMid}`,borderRadius:"8px",padding:"16px",marginBottom:"22px"}}>
+            <div style={sectionLabel}>Session Completion</div>
+            <div style={{display:"flex",gap:"6px"}}>
+              {DAY_ORDER.map(d=>{
+                const done=!!completed[d+"_w"+week];
+                return(<div key={d} style={{flex:1,textAlign:"center",padding:"12px 4px",borderRadius:"6px",background:done?C.greenLight:C.surface,border:`1.5px solid ${done?C.green:C.border}`,fontSize:"11px",fontWeight:"bold",color:done?C.green:C.textFaint}}>{done?"✓":d}</div>);
+              })}
+            </div>
+          </div>
+
+          {/* Conditioning log summary */}
+          <div style={{background:C.surface,border:`1.5px solid ${C.borderMid}`,borderRadius:"8px",padding:"16px",marginBottom:"22px"}}>
+            <div style={sectionLabel}>Conditioning This Week</div>
+            {DAY_ORDER.map(d=>{
+              const entry=condLog[d+"_w"+week];
+              if(!entry||!entry.selected)return null;
+              return(
+                <div key={d} style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
+                  <div style={{fontSize:"13px",color:C.textMid,fontWeight:"bold"}}>{d}</div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:"13px",color:C.white,fontWeight:"bold"}}>{entry.selected}</div>
+                    {entry.note&&<div style={{fontSize:"11px",color:C.textMuted,marginTop:"2px"}}>{entry.note}</div>}
+                  </div>
+                </div>
+              );
+            })}
+            {!DAY_ORDER.some(d=>condLog[d+"_w"+week]?.selected)&&<div style={{fontSize:"13px",color:C.textFaint,fontStyle:"italic"}}>No conditioning logged yet this week.</div>}
+          </div>
+
+          {/* Band log summary */}
+          <div style={{background:C.surface,border:`1.5px solid ${C.borderMid}`,borderRadius:"8px",padding:"16px",marginBottom:"22px"}}>
+            <div style={sectionLabel}>Band Usage This Week</div>
+            {Object.entries(bandLog).filter(([k,v])=>v).map(([k,v])=>(
+              <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${C.border}`}}>
+                <div style={{fontSize:"12px",color:C.textMuted,fontWeight:"500"}}>{k}</div>
+                <div style={{fontSize:"13px",color:C.gold,fontWeight:"bold"}}>{v}</div>
+              </div>
+            ))}
+            {!Object.values(bandLog).some(v=>v)&&<div style={{fontSize:"13px",color:C.textFaint,fontStyle:"italic"}}>No band usage logged yet.</div>}
+          </div>
+
+          {/* Progressive overload per exercise */}
+          {DAY_ORDER.map(d=>{
+            const s=PROGRAM.find(p=>p.day===d);
+            return(
+              <div key={d} style={{marginBottom:"24px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"10px",paddingBottom:"8px",borderBottom:`2px solid ${C.goldBorder}`}}>
+                  <div style={{fontSize:"11px",letterSpacing:"3px",color:C.gold,textTransform:"uppercase",fontWeight:"bold"}}>{s.fullDay}</div>
+                  <div style={{fontSize:"12px",color:C.textMuted,fontWeight:"500"}}>{s.label}</div>
+                </div>
+                {(s.groups||[]).flatMap(g=>g.exercises||[]).filter(ex=>ex.id&&ex.lockedSets!==0).map(ex=>{
+                  const variantKey=variantSelections[ex.id]||null;
+                  const trackerLogKey=variantKey?ex.id+"_v_"+variantKey:ex.id;
+                  const logA=sessionLog[trackerLogKey+"_w"+week+"_a"]||[];
+                  const done=(logA||[]).filter(s=>s&&s.weight&&s.reps);
+                  const prog=checkProgression(logA,getPhaseRepRange(ex,phase)||ex.reps||"10–12");
+                  const ps=getPhaseSets(null,phase.type,ex,phase.sets);
+                  const{max}=parseRange(ex.reps||phase.reps||"10–12");
+                  return(
+                    <div key={ex.id} style={{marginBottom:"10px",background:C.surface,border:`1.5px solid ${C.border}`,borderRadius:"8px",padding:"13px 15px"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"6px"}}>
+                        <div style={{fontSize:"14px",fontWeight:"bold",color:C.white,maxWidth:"220px",lineHeight:1.3}}>
+                          {(()=>{
+                            const vk=variantSelections[ex.id];
+                            const vd=vk&&ex.variants?ex.variants[vk]:null;
+                            if(vd)return(<><span style={{color:C.gold}}>{vd.name}</span><span style={{fontSize:"11px",color:C.textFaint,fontWeight:"normal",display:"block"}}>Variant of: {ex.name}</span></>);
+                            return <>{ex.name}{ex.isSuperset&&ex.subName?<span style={{fontSize:"12px",color:C.textFaint,fontWeight:"normal"}}> / {ex.subName}</span>:""}</>;
+                          })()}
+                        </div>
+                        {prog&&<span style={{fontSize:"9px",letterSpacing:"1px",background:C.green,color:C.bg,padding:"3px 8px",borderRadius:"3px",fontWeight:"bold",whiteSpace:"nowrap"}}>↑ ADD WEIGHT</span>}
+                      </div>
+                      <div style={{fontSize:"12px",color:C.textMuted,marginBottom:"8px",fontWeight:"500"}}>{ps} × {ex.reps||phase.reps} · {phase.focus}</div>
+                      {done.length>0?(
+                        <div style={{display:"flex",gap:"5px",flexWrap:"wrap"}}>
+                          {done.map((set,si)=>(
+                            <div key={si} style={{background:parseInt(set.reps)>=max?C.greenLight:C.surfaceMid,border:`1.5px solid ${parseInt(set.reps)>=max?C.greenBorder:C.border}`,borderRadius:"4px",padding:"4px 9px",fontSize:"12px",color:parseInt(set.reps)>=max?C.green:C.textMid,fontWeight:"bold"}}>
+                              {set.weight}lb×{set.reps}<span style={{color:C.textFaint,fontWeight:"normal"}}> @{set.rir}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ):(
+                        <div style={{fontSize:"12px",color:C.textFaint,fontStyle:"italic"}}>Not logged this week</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ══ BODY COMP VIEW ══ */}
+      {view==="bodycomp"&&<BodyCompView/>}
+
+    </div>
+    {pickerEx&&(
+      <VariantPicker
+        ex={pickerEx}
+        side={pickerSide}
+        currentVariant={variantSelections[pickerEx.id]||null}
+        onSelect={(altId)=>{
+          const key=pickerSide?pickerEx.id+"_"+pickerSide:pickerEx.id;
+          handleAltSelect(key,altId);
+          setPickerEx(null);setPickerSide(null);
+        }}
+        onClose={()=>{setPickerEx(null);setPickerSide(null);}}/>
+    )}
+    </>
+  );
+}
+
+const root=ReactDOM.createRoot(document.getElementById("root"));
+root.render(React.createElement(App));
+</script>
+</body>
+</html>
